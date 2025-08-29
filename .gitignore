@@ -274,6 +274,7 @@ kustomization.yaml
 # 测试文件
 src/test/
 src/docs/
+src/model/
 
 # 开发环境配置
 .env.dev

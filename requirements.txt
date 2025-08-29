@@ -26,6 +26,11 @@ numpy==1.24.4
 scipy==1.11.4
 scikit-learn==1.3.2
 
+# 本地Embedding模型支持
+transformers==4.35.2
+torch>=2.0.0
+sentence-transformers==2.2.2
+
 # 向量数据库
 chromadb==0.4.18
 faiss-cpu==1.7.4
