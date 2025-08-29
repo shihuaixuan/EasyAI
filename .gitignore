@@ -274,8 +274,10 @@ kustomization.yaml
 # 测试文件
 src/test/
 src/docs/
-src/model/
-
+# AI模型文件目录（排除业务逻辑中的model目录）
+/models/
+/model/
+/test/
 # 开发环境配置
 .env.dev
 .env.development
