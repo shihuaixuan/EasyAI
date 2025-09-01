@@ -1,7 +1,7 @@
 """模型注册装饰器和注册表"""
 from typing import Dict, Type, Optional
 from .base import BaseLLM
-from .config.base import ModelProvider
+from ..config.base import ModelProvider
 
 
 class ModelRegistry:
