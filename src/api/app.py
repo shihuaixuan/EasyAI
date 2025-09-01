@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 
 from ..infrastructure.database import create_tables
 from .controllers.provider_controller import router as provider_router
+from .controllers.model_controller import router as model_router
 
 
 @asynccontextmanager
@@ -40,6 +41,7 @@ def create_app() -> FastAPI:
     
     # 注册路由
     app.include_router(provider_router)
+    app.include_router(model_router)
     
     # 根路径
     @app.get("/")

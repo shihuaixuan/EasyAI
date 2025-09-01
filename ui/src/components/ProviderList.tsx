@@ -1,9 +1,13 @@
+import { useState, useEffect } from 'react';
 import ProviderCard from './ProviderCard';
+import { getUserProviders, ProviderResponse } from '../services/providerService';
 
-const providers = [
+// 基础提供商配置模板
+const baseProviders = [
   {
     id: 'openai',
     name: 'OpenAI',
+    logo: '/openai.svg',
     capabilities: [
       { name: 'LLM' },
       { name: 'TEXT EMBEDDING' },
@@ -13,23 +17,21 @@ const providers = [
     ],
     tokenLimit: 200,
     tokenUsed: 200,
-    status: 'disconnected' as const,
-    hasApiKey: false
   },
   {
     id: 'anthropic',
     name: 'ANTHROPIC',
+    logo: '/claude.ico',
     capabilities: [
       { name: 'LLM' }
     ],
     tokenLimit: 0,
     tokenUsed: 0,
-    status: 'disconnected' as const,
-    hasApiKey: false
   },
   {
     id: 'siliconflow',
     name: '硅基流动',
+    logo: '/sillconFlow.ico',
     capabilities: [
       { name: 'LLM' },
       { name: 'TEXT EMBEDDING' },
@@ -37,26 +39,96 @@ const providers = [
       { name: 'SPEECH2TEXT' },
       { name: 'TTS' }
     ],
-    status: 'connected' as const,
-    hasApiKey: true
   },
   {
     id: 'deepseek',
     name: '深度求索',
+    logo: '/deepseek.ico',
     capabilities: [
       { name: 'LLM' }
     ],
-    status: 'connected' as const,
-    hasApiKey: true
   }
 ];
 
 export default function ProviderList() {
+  const [providers, setProviders] = useState<any[]>([]);
+  const [savedProviders, setSavedProviders] = useState<ProviderResponse[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
+  // 获取已保存的提供商配置
+  const fetchSavedProviders = async () => {
+    try {
+      console.log('开始获取已保存的提供商配置...');
+      const userId = 1; // TODO: 从用户上下文获取
+      const saved = await getUserProviders(userId);
+      console.log('获取到的提供商配置:', saved);
+      setSavedProviders(saved);
+    } catch (err) {
+      console.error('获取已保存的提供商失败:', err);
+      setError('获取配置失败');
+    }
+  };
+  
+  // 初始化加载
+  useEffect(() => {
+    const initializeProviders = async () => {
+      setLoading(true);
+      await fetchSavedProviders();
+      setLoading(false);
+    };
+    
+    initializeProviders();
+  }, []);
+  
+  // 合并基础配置和已保存的配置
+  useEffect(() => {
+    const mergedProviders = baseProviders.map(baseProvider => {
+      const savedProvider = savedProviders.find(sp => sp.provider === baseProvider.id);
+      return {
+        ...baseProvider,
+        status: savedProvider ? 'connected' as const : 'disconnected' as const,
+        hasApiKey: !!savedProvider,
+        base_url: savedProvider?.base_url,
+        saved_id: savedProvider?.id
+      };
+    });
+    setProviders(mergedProviders);
+  }, [savedProviders]);
+  
+  // 刷新提供商列表的函数
+  const refreshProviders = () => {
+    fetchSavedProviders();
+  };
+  
+  if (loading) {
+    return (
+      <div className="p-6">
+        <div className="flex justify-center items-center h-64">
+          <div className="text-gray-500">加载中...</div>
+        </div>
+      </div>
+    );
+  }
+  
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="flex justify-center items-center h-64">
+          <div className="text-red-500">{error}</div>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="p-6">
       <div className="space-y-4">
         {providers.map((provider) => (
-          <ProviderCard key={provider.id} provider={provider} />
+          <ProviderCard 
+            key={provider.id} 
+            provider={provider} 
+            onSave={refreshProviders} // 传递刷新函数
+          />
         ))}
       </div>
     </div>

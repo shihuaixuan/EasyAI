@@ -4,10 +4,11 @@ Provider应用服务
 from typing import List
 from datetime import datetime
 
-from application.dto.provider_dto import SaveProviderRequest, SaveProviderResponse, ProviderResponse
-from domain.provider.services.provider_domain_service import ProviderDomainService
-from domain.provider.entities.provider import Provider
-from domain.provider.exceptions import ProviderDomainError, RepositoryError
+from ...application.dto.provider_dto import SaveProviderRequest, SaveProviderResponse, ProviderResponse
+from ...domain.provider.services.provider_domain_service import ProviderDomainService
+from ...domain.provider.entities.provider import Provider
+from ...domain.provider.exceptions import ProviderDomainError, RepositoryError
+from ...infrastructure.security import encryption_service
 
 
 class ProviderApplicationService:
@@ -29,11 +30,11 @@ class ProviderApplicationService:
             保存Provider响应
         """
         try:
-            # 调用领域服务保存Provider
+            # 调用领域服务保存Provider（传递明文API Key）
             provider = await self._provider_domain_service.save_provider(
                 user_id=request.user_id,
                 provider_name=request.provider,
-                encrypted_api_key=request.api_key,
+                plain_api_key=request.api_key,  # 传递明文API Key
                 base_url=request.base_url
             )
             
@@ -98,11 +99,20 @@ class ProviderApplicationService:
         # 确保 id 不为 None，如果为 None 则抛出异常
         if provider.id is None:
             raise ValueError(f"Provider id 不能为 None: {provider}")
+        
+        # 解密API Key并生成掉码显示
+        try:
+            decrypted_api_key = encryption_service.decrypt(provider.api_key.encrypted_value)
+            masked_api_key = encryption_service.mask_api_key(decrypted_api_key)
+        except Exception:
+            # 如果解密失败，使用默认掉码
+            masked_api_key = "***"
             
         return ProviderResponse(
             id=provider.id,
             user_id=provider.user_id,
             provider=provider.provider,
+            api_key_masked=masked_api_key,
             base_url=str(provider.base_url) if not provider.base_url.is_empty() else None,
             created_at=provider.created_at.isoformat() if provider.created_at else None,
             updated_at=provider.updated_at.isoformat() if provider.updated_at else None

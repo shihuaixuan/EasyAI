@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>提供商图标测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .provider-card {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 16px 0;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .provider-icon {
+            width: 32px;
+            height: 32px;
+            object-fit: contain;
+        }
+        .provider-info h3 {
+            margin: 0 0 4px 0;
+            color: #333;
+        }
+        .provider-info p {
+            margin: 0;
+            color: #666;
+            font-size: 14px;
+        }
+        .fallback-icon {
+            width: 32px;
+            height: 32px;
+            background-color: #e0e0e0;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: #666;
+        }
+        .status {
+            margin-left: auto;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .connected {
+            background-color: #e8f5e8;
+            color: #2d5a2d;
+        }
+        .disconnected {
+            background-color: #ffeaea;
+            color: #8b0000;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎨 EasyAI 提供商图标测试</h1>
+    <p>测试public文件夹中的提供商图标是否正确显示</p>
+    
+    <div id="providers">
+        <!-- 提供商卡片将通过JavaScript动态生成 -->
+    </div>
+
+    <script>
+        const providers = [
+            {
+                id: 'openai',
+                name: 'OpenAI',
+                logo: '/openai.svg',
+                description: 'GPT系列模型提供商',
+                status: 'connected'
+            },
+            {
+                id: 'anthropic',
+                name: 'ANTHROPIC',
+                logo: '/claude.ico',
+                description: 'Claude系列模型提供商',
+                status: 'connected'
+            },
+            {
+                id: 'siliconflow',
+                name: '硅基流动',
+                logo: '/sillconFlow.ico',
+                description: '国产AI模型服务平台',
+                status: 'connected'
+            },
+            {
+                id: 'deepseek',
+                name: '深度求索',
+                logo: '/deepseek.ico',
+                description: '深度学习模型提供商',
+                status: 'connected'
+            }
+        ];
+
+        function createProviderCard(provider) {
+            const card = document.createElement('div');
+            card.className = 'provider-card';
+            
+            const icon = document.createElement('img');
+            icon.src = provider.logo;
+            icon.alt = provider.name;
+            icon.className = 'provider-icon';
+            icon.onerror = function() {
+                // 如果图片加载失败，显示备用图标
+                const fallback = document.createElement('div');
+                fallback.className = 'fallback-icon';
+                fallback.textContent = provider.name.charAt(0);
+                this.parentNode.replaceChild(fallback, this);
+            };
+            
+            const info = document.createElement('div');
+            info.className = 'provider-info';
+            info.innerHTML = `
+                <h3>${provider.name}</h3>
+                <p>${provider.description}</p>
+            `;
+            
+            const status = document.createElement('div');
+            status.className = `status ${provider.status}`;
+            status.textContent = provider.status === 'connected' ? '已连接' : '未连接';
+            
+            card.appendChild(icon);
+            card.appendChild(info);
+            card.appendChild(status);
+            
+            return card;
+        }
+
+        // 渲染所有提供商卡片
+        const container = document.getElementById('providers');
+        providers.forEach(provider => {
+            container.appendChild(createProviderCard(provider));
+        });
+
+        // 测试信息
+        console.log('🎨 提供商图标测试');
+        console.log('图标映射:', providers.map(p => `${p.id} -> ${p.logo}`));
+    </script>
+</body>
+</html>

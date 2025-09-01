@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect } from 'react';
 import { 
   Briefcase, 
   Bot, 
@@ -8,9 +8,11 @@ import {
   Puzzle, 
   Settings, 
   Globe, 
-  Languages 
+  Languages,
+  BookOpen 
 } from 'lucide-react';
 import { cn } from '../utils/cn';
+import { useNavigation, PageType } from '@/hooks/useNavigation';
 
 interface SidebarItem {
   id: string;
@@ -21,7 +23,8 @@ interface SidebarItem {
 
 const sidebarItems: SidebarItem[] = [
   { id: 'workspace', label: '工作空间', icon: Briefcase },
-  { id: 'model-providers', label: '模型供应商', icon: Bot, isActive: true },
+  { id: 'model-providers', label: '模型供应商', icon: Bot },
+  { id: 'knowledge', label: '知识库', icon: BookOpen },
   { id: 'members', label: '成员', icon: Users },
   { id: 'billing', label: '账单', icon: CreditCard },
   { id: 'data-sources', label: '数据来源', icon: Database },
@@ -35,16 +38,16 @@ const generalItems: SidebarItem[] = [
 ];
 
 export default function Sidebar() {
-  const [activeItem, setActiveItem] = useState('model-providers');
+  const { currentPage, setCurrentPage } = useNavigation();
 
   const renderSidebarItem = (item: SidebarItem) => {
     const Icon = item.icon;
-    const isActive = activeItem === item.id;
+    const isActive = currentPage === item.id;
     
     return (
       <button
         key={item.id}
-        onClick={() => setActiveItem(item.id)}
+        onClick={() => setCurrentPage(item.id as PageType)}
         className={cn(
           'w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors',
           isActive 

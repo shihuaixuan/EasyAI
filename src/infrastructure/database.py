@@ -8,9 +8,10 @@ from contextlib import asynccontextmanager
 import os
 
 # 数据库URL配置
+# PostgreSQL配置
 DATABASE_URL = os.getenv(
     "DATABASE_URL", 
-    "sqlite+aiosqlite:///./easyai.db"  # 默认使用SQLite，可以配置为PostgreSQL
+    "postgresql+asyncpg://twenty:123456@localhost:5432/esayai"  # 使用正确的数据库名称
 )
 
 # 创建异步引擎
@@ -68,7 +69,7 @@ async def create_tables():
     创建数据库表
     """
     # 导入所有模型以确保它们被注册
-    from infrastructure.models.provider_models import ProviderModel, ModelModel
+    from .models.provider_models import ProviderModel, ModelModel
     
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -78,7 +79,7 @@ async def drop_tables():
     """
     删除数据库表（仅用于测试）
     """
-    from infrastructure.models.provider_models import ProviderModel, ModelModel
+    from .models.provider_models import ProviderModel, ModelModel
     
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)

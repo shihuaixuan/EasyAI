@@ -3,9 +3,10 @@ Provider领域服务
 """
 from typing import Optional
 
-from domain.provider.entities.provider import Provider
-from domain.provider.repositories.provider_repository import ProviderRepository
-from domain.provider.exceptions import ProviderAlreadyExistsError, ProviderNotFoundError
+from ..entities.provider import Provider
+from ..repositories.provider_repository import ProviderRepository
+from ..exceptions import ProviderAlreadyExistsError, ProviderNotFoundError
+from ....infrastructure.security import encryption_service
 
 
 class ProviderDomainService:
@@ -20,7 +21,7 @@ class ProviderDomainService:
         self,
         user_id: int,
         provider_name: str,
-        encrypted_api_key: str,
+        plain_api_key: str,
         base_url: Optional[str] = None
     ) -> Provider:
         """
@@ -28,17 +29,21 @@ class ProviderDomainService:
         
         实现业务规则：
         1. 检查用户+提供商组合是否已存在
-        2. 如果存在，则更新；如果不存在，则新建
+        2. 加密API Key
+        3. 如果存在，则更新；如果不存在，则新建
         
         Args:
             user_id: 用户ID
             provider_name: 提供商名称
-            encrypted_api_key: 加密后的API Key
+            plain_api_key: 明文API Key
             base_url: 基础URL（可选）
             
         Returns:
             保存后的Provider实体
         """
+        # 加密API Key
+        encrypted_api_key = encryption_service.encrypt(plain_api_key)
+        
         # 检查是否已存在
         existing_provider = await self._provider_repository.find_by_user_and_provider(
             user_id, provider_name

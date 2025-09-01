@@ -69,6 +69,7 @@ class ProviderResponse(BaseModel):
     id: int = Field(..., description="Provider ID")
     user_id: int = Field(..., description="用户ID")
     provider: str = Field(..., description="提供商名称")
+    api_key_masked: Optional[str] = Field(None, description="掉码后的API Key，用于前端显示")
     base_url: Optional[str] = Field(None, description="基础URL")
     created_at: Optional[str] = Field(None, description="创建时间")
     updated_at: Optional[str] = Field(None, description="更新时间")
@@ -79,6 +80,7 @@ class ProviderResponse(BaseModel):
                 "id": 1,
                 "user_id": 1,
                 "provider": "openai",
+                "api_key_masked": "sk-***1234",
                 "base_url": "https://api.openai.com/v1",
                 "created_at": "2023-12-01T10:00:00Z",
                 "updated_at": "2023-12-01T10:00:00Z"

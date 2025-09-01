@@ -1,6 +1,9 @@
 """
 SQLAlchemy Provider仓储实现
 """
+from sqlalchemy.ext.asyncio.session import AsyncSession
+
+
 from typing import List, Optional
 from datetime import datetime
 
@@ -9,12 +12,12 @@ from sqlalchemy.future import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import and_
 
-from domain.provider.repositories.provider_repository import ProviderRepository
-from domain.provider.entities.provider import Provider
-from domain.provider.value_objects.api_key import ApiKey
-from domain.provider.value_objects.base_url import BaseUrl
-from domain.provider.exceptions import ProviderAlreadyExistsError, RepositoryError
-from infrastructure.models.provider_models import ProviderModel
+from ....domain.provider.repositories.provider_repository import ProviderRepository
+from ....domain.provider.entities.provider import Provider
+from ....domain.provider.value_objects.api_key import ApiKey
+from ....domain.provider.value_objects.base_url import BaseUrl
+from ....domain.provider.exceptions import ProviderAlreadyExistsError, RepositoryError
+from ...models.provider_models import ProviderModel
 
 
 class SqlProviderRepository(ProviderRepository):
@@ -23,7 +26,7 @@ class SqlProviderRepository(ProviderRepository):
     """
     
     def __init__(self, session: AsyncSession):
-        self._session = session
+        self._session: AsyncSession = session
     
     async def save(self, provider: Provider) -> Provider:
         """保存Provider实体"""

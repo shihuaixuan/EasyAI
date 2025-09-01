@@ -9,10 +9,10 @@ from sqlalchemy.future import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import and_
 
-from domain.provider.repositories.model_repository import ModelRepository
-from domain.provider.entities.model import Model
-from domain.provider.exceptions import ModelAlreadyExistsError, RepositoryError
-from infrastructure.models.provider_models import ModelModel
+from ....domain.provider.repositories.model_repository import ModelRepository
+from ....domain.provider.entities.model import Model
+from ....domain.provider.exceptions import ModelAlreadyExistsError, RepositoryError
+from ...models.provider_models import ModelModel
 
 
 class SqlModelRepository(ModelRepository):
@@ -124,6 +124,7 @@ class SqlModelRepository(ModelRepository):
             model_data.type = model.type  # type: ignore
             model_data.subtype = model.subtype  # type: ignore
             model_data.model_metadata = model.get_metadata_json()  # type: ignore
+            model_data.is_delete = model.is_delete  # type: ignore
             model_data.updated_at = datetime.now()  # type: ignore
             
             # 提交更改
