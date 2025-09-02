@@ -55,7 +55,15 @@ class ModelApplicationService:
                     data=None
                 )
             
-            # 2. 查找或创建模型
+            # 2. 检查provider.id是否为None
+            if provider.id is None:
+                return ModelOperationResponse(
+                    success=False,
+                    message="提供商ID无效，请重新配置",
+                    data=None
+                )
+            
+            # 3. 查找或创建模型
             existing_model = await self._model_repository.find_by_provider_and_name(
                 provider.id, request.model_name
             )
@@ -167,7 +175,7 @@ class ModelApplicationService:
             
             # 3. 获取已启用的模型
             enabled_models = []
-            if provider_entity:
+            if provider_entity and provider_entity.id is not None:
                 enabled_models = await self._model_repository.find_by_provider_id(provider_entity.id)
             
             enabled_model_names = {

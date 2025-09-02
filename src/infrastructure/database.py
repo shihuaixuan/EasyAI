@@ -83,3 +83,10 @@ async def drop_tables():
     
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
+
+
+async def get_session():
+    """
+    获取数据库会话（简单版本用于测试）
+    """
+    return AsyncSessionLocal()
