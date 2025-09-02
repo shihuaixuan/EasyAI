@@ -3,11 +3,12 @@ API依赖注入配置
 """
 
 from ..application.services.knowledge_application_service import KnowledgeApplicationService
-from ..infrastructure.repositories.knowledge_base_repository_impl import KnowledgeBaseRepositoryImpl
+from ..infrastructure.repositories.knowledge_base_database_repository_impl import KnowledgeBaseDatabaseRepositoryImpl
 from ..infrastructure.repositories.document_repository_impl import DocumentRepositoryImpl
 from ..infrastructure.repositories.document_chunk_repository_impl import DocumentChunkRepositoryImpl
 from ..domain.knowledge.services.file_upload_service import FileUploadService
 from ..domain.knowledge.services.document_parser_service import DocumentParserService, DocumentParserRegistry
+from ..domain.knowledge.services.chunking.document_chunking_service import DocumentChunkingService
 from ..domain.knowledge.services.knowledge_base_domain_service import KnowledgeBaseDomainService
 from ..domain.knowledge.vo.workflow_config import FileUploadConfig
 from ..infrastructure.database import get_session
@@ -23,11 +24,11 @@ async def get_knowledge_service() -> KnowledgeApplicationService:
     global _knowledge_service_instance
     
     if _knowledge_service_instance is None:
-        # 创建仓储实例
-        session = await get_session()
-        knowledge_base_repo = KnowledgeBaseRepositoryImpl(session)
-        document_repo = DocumentRepositoryImpl(session)
-        document_chunk_repo = DocumentChunkRepositoryImpl(session)
+        # 创建仓储实例（使用临时会话）
+        temp_session = await get_session()
+        knowledge_base_repo = KnowledgeBaseDatabaseRepositoryImpl(temp_session)
+        document_repo = DocumentRepositoryImpl(temp_session)
+        document_chunk_repo = DocumentChunkRepositoryImpl(temp_session)
         
         # 创建领域服务实例
         file_upload_config = FileUploadConfig()
@@ -38,6 +39,9 @@ async def get_knowledge_service() -> KnowledgeApplicationService:
         parser_registry.register(['.txt', '.md', '.mdx', '.csv', '.json', '.xml', '.html', '.htm'], TextDocumentParser)
         parser_registry.register(['.pdf', '.doc', '.docx', '.xlsx', '.xls', '.ppt', '.pptx'], DefaultDocumentParser)
         document_parser_service = DocumentParserService(parser_registry)
+        
+        # 创建分块服务
+        document_chunking_service = DocumentChunkingService()
         
         # 创建领域服务
         knowledge_base_domain_service = KnowledgeBaseDomainService(
@@ -51,8 +55,10 @@ async def get_knowledge_service() -> KnowledgeApplicationService:
             knowledge_base_domain_service=knowledge_base_domain_service,
             file_upload_service=file_upload_service,
             document_parser_service=document_parser_service,
+            document_chunking_service=document_chunking_service,
             knowledge_base_repo=knowledge_base_repo,
-            document_repo=document_repo
+            document_repo=document_repo,
+            document_chunk_repo=document_chunk_repo
         )
     
     return _knowledge_service_instance

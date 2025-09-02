@@ -29,7 +29,10 @@ from ...domain.knowledge.repositories.document_repository import DocumentReposit
 from ...domain.knowledge.services.knowledge_base_domain_service import KnowledgeBaseDomainService
 from ...domain.knowledge.services.file_upload_service import FileUploadService, UploadedFile
 from ...domain.knowledge.services.document_parser_service import DocumentParserService
+from ...domain.knowledge.services.chunking.document_chunking_service import DocumentChunkingService
+from ...domain.knowledge.repositories.document_chunk_repository import DocumentChunkRepository
 from ...domain.knowledge.vo.workflow_config import FileUploadConfig
+from ...domain.knowledge.vo.chunking_config import ChunkingConfig, TextPreprocessingConfig
 
 
 class KnowledgeApplicationService:
@@ -40,14 +43,18 @@ class KnowledgeApplicationService:
         knowledge_base_domain_service: KnowledgeBaseDomainService,
         file_upload_service: FileUploadService,
         document_parser_service: DocumentParserService,
+        document_chunking_service: DocumentChunkingService,
         knowledge_base_repo: KnowledgeBaseRepository,
-        document_repo: DocumentRepository
+        document_repo: DocumentRepository,
+        document_chunk_repo: DocumentChunkRepository
     ):
         self.knowledge_base_domain_service = knowledge_base_domain_service
         self.file_upload_service = file_upload_service
         self.document_parser_service = document_parser_service
+        self.document_chunking_service = document_chunking_service
         self.knowledge_base_repo = knowledge_base_repo
         self.document_repo = document_repo
+        self.document_chunk_repo = document_chunk_repo
     
     async def create_knowledge_base(
         self, 
@@ -116,7 +123,8 @@ class KnowledgeApplicationService:
                 "overlap_length": config_request.chunking.overlap_length,
                 "preprocessing": {
                     "remove_extra_whitespace": config_request.chunking.remove_extra_whitespace,
-                    "remove_urls": config_request.chunking.remove_urls
+                    "remove_urls": config_request.chunking.remove_urls,
+                    "remove_emails": config_request.chunking.remove_emails  # 新增字段
                 }
             },
             "embedding": {
@@ -144,6 +152,9 @@ class KnowledgeApplicationService:
         knowledge_base = await self.knowledge_base_domain_service.update_knowledge_base_config(
             knowledge_base_id, config_dict
         )
+        
+        # 触发文档重新分块处理
+        await self.process_documents_chunking(knowledge_base_id, config_dict["chunking"])
         
         return WorkflowConfigResponse(
             knowledge_base_id=knowledge_base_id,
@@ -313,3 +324,68 @@ class KnowledgeApplicationService:
             "chunk_count": document.chunk_count,
             "created_at": document.created_at.isoformat() if document.created_at else None
         }
+    
+    async def process_documents_chunking(
+        self, 
+        knowledge_base_id: str, 
+        chunking_config: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        对知识库中的所有文档进行分块处理
+        
+        Args:
+            knowledge_base_id: 知识库ID
+            chunking_config: 分块配置
+            
+        Returns:
+            处理结果统计
+        """
+        try:
+            # 获取知识库中的所有文档
+            documents = await self.document_repo.find_by_knowledge_base_id(knowledge_base_id)
+            
+            if not documents:
+                return {"processed_documents": 0, "total_chunks": 0, "message": "没有找到文档"}
+            
+            # 创建分块配置对象
+            config = ChunkingConfig.from_dict(chunking_config)
+            
+            total_chunks = 0
+            processed_documents = 0
+            
+            for document in documents:
+                try:
+                    # 清理旧的分块
+                    await self.document_chunk_repo.delete_by_document_id(document.document_id or "")
+                    
+                    # 进行新的分块处理
+                    chunks = await self.document_chunking_service.chunk_document(document, config)
+                    
+                    # 保存分块
+                    if chunks:
+                        await self.document_chunk_repo.save_batch(chunks)
+                        total_chunks += len(chunks)
+                    
+                    # 更新文档的分块统计
+                    document.chunk_count = len(chunks)
+                    document.mark_as_processed(len(chunks))
+                    await self.document_repo.update(document)
+                    
+                    processed_documents += 1
+                    
+                except Exception as e:
+                    print(f"处理文档 {document.filename} 时出错: {str(e)}")
+                    continue
+            
+            return {
+                "processed_documents": processed_documents,
+                "total_chunks": total_chunks,
+                "message": f"成功处理 {processed_documents} 个文档，生成 {total_chunks} 个分块"
+            }
+            
+        except Exception as e:
+            return {
+                "processed_documents": 0,
+                "total_chunks": 0,
+                "error": f"分块处理失败: {str(e)}"
+            }

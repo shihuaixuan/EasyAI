@@ -64,7 +64,21 @@ class ChunkingConfig:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'ChunkingConfig':
         """从字典创建配置对象"""
+        # 支持两种格式：
+        # 1. 嵌套格式：{"preprocessing": {"remove_urls": true}}
+        # 2. 平铺格式：{"remove_urls": true} (前端格式)
+        
         preprocessing_data = data.get('preprocessing', {})
+        
+        # 如果没有嵌套的preprocessing，则从顶级字段获取
+        if not preprocessing_data:
+            preprocessing_data = {
+                'remove_extra_whitespace': data.get('remove_extra_whitespace', False),
+                'remove_urls': data.get('remove_urls', False),
+                'remove_emails': data.get('remove_emails', False),
+                'normalize_unicode': data.get('normalize_unicode', True)
+            }
+        
         preprocessing = TextPreprocessingConfig(
             remove_extra_whitespace=preprocessing_data.get('remove_extra_whitespace', False),
             remove_urls=preprocessing_data.get('remove_urls', False),

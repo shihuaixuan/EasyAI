@@ -49,6 +49,7 @@ export interface WorkflowConfig {
     overlap_length: number;
     remove_extra_whitespace: boolean;
     remove_urls: boolean;
+    remove_emails: boolean;  // 新增字段
     parent_separator?: string;
     parent_max_length?: number;
     child_separator?: string;

@@ -4,6 +4,9 @@
 
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form
 from typing import List, Optional
+from sqlalchemy.ext.asyncio import AsyncSession
+from ...infrastructure.database import get_database_session
+from ...infrastructure.repositories.knowledge_base_database_repository_impl import KnowledgeBaseDatabaseRepositoryImpl
 from ...application.services.knowledge_application_service import KnowledgeApplicationService
 from ...application.dto.knowledge_base_dto import (
     KnowledgeBaseCreateRequest,
@@ -28,15 +31,55 @@ router = APIRouter(prefix="/api/knowledge", tags=["知识库"])
 @router.post("/knowledge-bases", response_model=KnowledgeBaseResponse)
 async def create_knowledge_base(
     request: KnowledgeBaseCreateRequest,
-    service: KnowledgeApplicationService = Depends(get_knowledge_service),
+    session: AsyncSession = Depends(get_database_session),
     current_user_id: str = Depends(get_current_user_id)
 ):
     """创建知识库"""
     try:
-        return await service.create_knowledge_base(request, current_user_id)
+        # 创建仓储实例
+        knowledge_base_repo = KnowledgeBaseDatabaseRepositoryImpl(session)
+        
+        # 创建知识库实体
+        from ...domain.knowledge.entities.knowledge_base import KnowledgeBase
+        knowledge_base = KnowledgeBase(
+            name=request.name,
+            description=request.description,
+            owner_id=current_user_id,
+            config=request.config or {}
+        )
+        
+        # 检查名称是否重复
+        if await knowledge_base_repo.exists_by_name_and_owner(request.name, current_user_id):
+            raise HTTPException(status_code=400, detail=f"知识库名称 '{request.name}' 已存在")
+        
+        # 保存到数据库
+        saved_kb = await knowledge_base_repo.save(knowledge_base)
+        await session.commit()
+        
+        # 返回响应
+        # __post_init__ 保证 knowledge_base_id 不会为 None
+        assert saved_kb.knowledge_base_id is not None
+        assert saved_kb.owner_id is not None
+        assert saved_kb.created_at is not None
+        assert saved_kb.updated_at is not None
+        return KnowledgeBaseResponse(
+            knowledge_base_id=saved_kb.knowledge_base_id,
+            name=saved_kb.name,
+            description=saved_kb.description,
+            owner_id=saved_kb.owner_id,
+            config=saved_kb.config or {},
+            is_active=saved_kb.is_active,
+            document_count=0,
+            chunk_count=0,
+            created_at=saved_kb.created_at,
+            updated_at=saved_kb.updated_at
+        )
+        
     except ValueError as e:
+        await session.rollback()
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        await session.rollback()
         raise HTTPException(status_code=500, detail=f"创建知识库失败: {str(e)}")
 
 
@@ -49,6 +92,50 @@ async def list_knowledge_bases(
     try:
         return await service.list_knowledge_bases(current_user_id)
     except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取知识库列表失败: {str(e)}")
+
+
+@router.get("/knowledge-bases", response_model=KnowledgeBaseListResponse)
+async def get_knowledge_bases(
+    session: AsyncSession = Depends(get_database_session),
+    current_user_id: str = Depends(get_current_user_id)
+):
+    """获取知识库列表"""
+    try:
+        # 创建仓储实例
+        knowledge_base_repo = KnowledgeBaseDatabaseRepositoryImpl(session)
+        
+        # 获取知识库列表
+        knowledge_bases = await knowledge_base_repo.find_by_owner_id(current_user_id)
+        
+        # 转换为响应对象
+        kb_responses = []
+        for kb in knowledge_bases:
+            # __post_init__ 保证这些字段不会为 None
+            assert kb.knowledge_base_id is not None
+            assert kb.owner_id is not None  
+            assert kb.created_at is not None
+            assert kb.updated_at is not None
+            kb_responses.append(KnowledgeBaseResponse(
+                knowledge_base_id=kb.knowledge_base_id,
+                name=kb.name,
+                description=kb.description,
+                owner_id=kb.owner_id,
+                config=kb.config or {},
+                is_active=kb.is_active,
+                document_count=kb.document_count,
+                chunk_count=kb.chunk_count,
+                created_at=kb.created_at,
+                updated_at=kb.updated_at
+            ))
+        
+        return KnowledgeBaseListResponse(
+            knowledge_bases=kb_responses,
+            total=len(kb_responses)
+        )
+        
+    except Exception as e:
+        await session.rollback()
         raise HTTPException(status_code=500, detail=f"获取知识库列表失败: {str(e)}")
 
 

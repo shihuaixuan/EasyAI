@@ -15,6 +15,7 @@ class ChunkingConfigRequest(BaseModel):
     overlap_length: int = Field(50, ge=0, le=1000, description="重叠长度")
     remove_extra_whitespace: bool = Field(False, description="移除多余空格")
     remove_urls: bool = Field(False, description="移除URL")
+    remove_emails: bool = Field(False, description="移除邮箱地址")  # 新增字段
     
     # 父子分段特有配置
     parent_separator: Optional[str] = Field(None, description="父块分隔符")

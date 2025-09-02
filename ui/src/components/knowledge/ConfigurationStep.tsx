@@ -222,7 +222,7 @@ export const ConfigurationStep: React.FC<ConfigurationStepProps> = ({
                   onChange={(e) => onChunkingConfigChange({ removeExtraWhitespace: e.target.checked })}
                   className="mr-2"
                 />
-                <span className="text-sm text-gray-700">替换填连续的空格、换行符和制表符</span>
+                <span className="text-sm text-gray-700">替换掉连续的空格、换行符和制表符</span>
               </label>
               <label className="flex items-center">
                 <input
@@ -231,7 +231,16 @@ export const ConfigurationStep: React.FC<ConfigurationStepProps> = ({
                   onChange={(e) => onChunkingConfigChange({ removeUrls: e.target.checked })}
                   className="mr-2"
                 />
-                <span className="text-sm text-gray-700">删除所有 URL 和电子邮件地址</span>
+                <span className="text-sm text-gray-700">删除所有 URL</span>
+              </label>
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={chunkingConfig.removeEmails}
+                  onChange={(e) => onChunkingConfigChange({ removeEmails: e.target.checked })}
+                  className="mr-2"
+                />
+                <span className="text-sm text-gray-700">删除所有电子邮件地址</span>
               </label>
             </div>
           </div>

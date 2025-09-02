@@ -20,6 +20,7 @@ export interface ChunkingConfigStep {
   overlapLength: number;
   removeExtraWhitespace: boolean;
   removeUrls: boolean;
+  removeEmails: boolean;  // 新增独立的邮箱删除选项
   // 父子分段特有配置
   parentSeparator?: string;
   parentMaxLength?: number;
@@ -58,6 +59,7 @@ const defaultChunkingConfig: ChunkingConfigStep = {
   overlapLength: 50,
   removeExtraWhitespace: false,
   removeUrls: false,
+  removeEmails: false,  // 新增默认值
 };
 
 const defaultEmbeddingConfig: EmbeddingConfigStep = {
@@ -222,6 +224,7 @@ export const useKnowledgeWorkflow = (initialKnowledgeBaseId?: string) => {
           overlap_length: state.chunkingConfig.overlapLength,
           remove_extra_whitespace: state.chunkingConfig.removeExtraWhitespace,
           remove_urls: state.chunkingConfig.removeUrls,
+          remove_emails: state.chunkingConfig.removeEmails,  // 新增字段
         },
         embedding: {
           strategy: state.embeddingConfig.strategy,
