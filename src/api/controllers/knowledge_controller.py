@@ -503,6 +503,69 @@ async def list_files(
         raise HTTPException(status_code=500, detail=f"获取文件列表失败: {str(e)}")
 
 
+@router.delete("/knowledge-bases/{knowledge_base_id}/files/{file_id}")
+async def delete_file(
+    knowledge_base_id: str,
+    file_id: str,
+    session: AsyncSession = Depends(get_database_session),
+    current_user_id: str = Depends(get_current_user_id)
+):
+    """删除单个文件"""
+    try:
+        # 创建使用当前请求会话的仓储实例
+        from ...infrastructure.repositories.knowledge.document_sql_repository import DocumentSqlRepository
+        from ...infrastructure.repositories.knowledge.document_chunk_sql_repository import DocumentChunkSqlRepository
+        
+        knowledge_base_repo = KnowledgeBaseDatabaseRepositoryImpl(session)
+        document_repo = DocumentSqlRepository(session)
+        document_chunk_repo = DocumentChunkSqlRepository(session)
+        
+        # 创建领域服务（使用当前请求的会话）
+        knowledge_base_domain_service = KnowledgeBaseDomainService(
+            knowledge_base_repo=knowledge_base_repo,
+            document_repo=document_repo,
+            chunk_repo=document_chunk_repo
+        )
+        
+        # 验证知识库是否存在
+        knowledge_base = await knowledge_base_repo.find_by_id(knowledge_base_id)
+        if not knowledge_base:
+            raise HTTPException(status_code=404, detail="知识库不存在")
+        
+        # TODO: 验证用户对知识库的权限
+        
+        # 验证文档是否存在
+        document = await document_repo.find_by_id(file_id)
+        if not document:
+            raise HTTPException(status_code=404, detail="文件不存在")
+        
+        # 验证文档是否属于该知识库
+        if document.knowledge_base_id != knowledge_base_id:
+            raise HTTPException(status_code=400, detail="文件不属于该知识库")
+        
+        # 删除文档的所有文档块
+        await document_chunk_repo.delete_by_document_id(file_id)
+        
+        # 删除文档
+        await document_repo.delete_by_id(file_id)
+        
+        # 更新知识库统计信息
+        await knowledge_base_domain_service.update_knowledge_base_statistics(knowledge_base_id)
+        
+        # 提交数据库事务
+        await session.commit()
+        
+        return {"message": "文件删除成功"}
+        
+    except HTTPException:
+        await session.rollback()
+        raise
+    except Exception as e:
+        print(f"删除文件出错: {str(e)}")
+        await session.rollback()
+        raise HTTPException(status_code=500, detail=f"删除文件失败: {str(e)}")
+
+
 @router.delete("/knowledge-bases/{knowledge_base_id}")
 async def delete_knowledge_base(
     knowledge_base_id: str,

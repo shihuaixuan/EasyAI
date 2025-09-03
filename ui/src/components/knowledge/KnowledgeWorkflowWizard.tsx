@@ -54,12 +54,18 @@ interface KnowledgeWorkflowWizardProps {
   knowledgeBaseId: string;
   onComplete?: () => void;
   onCancel?: () => void;
+  initialStep?: number;
+  initialConfig?: any;
+  mode?: 'upload' | 'settings'; // 新增模式属性
 }
 
 export const KnowledgeWorkflowWizard: React.FC<KnowledgeWorkflowWizardProps> = ({
   knowledgeBaseId,
   onComplete,
   onCancel,
+  initialStep = 1,
+  initialConfig,
+  mode = 'upload', // 默认为上传模式
 }) => {
   const {
     state,
@@ -73,13 +79,19 @@ export const KnowledgeWorkflowWizard: React.FC<KnowledgeWorkflowWizardProps> = (
     uploadFiles,
     startProcessing,
     canProceedToNextStep,
-  } = useKnowledgeWorkflow(knowledgeBaseId);
+  } = useKnowledgeWorkflow(knowledgeBaseId, initialStep, initialConfig);
 
-  const steps = [
-    { label: '上传文件', step: 1 },
-    { label: '配置参数', step: 2 },
-    { label: '处理完成', step: 3 },
-  ];
+  // 根据模式调整步骤
+  const steps = mode === 'settings' 
+    ? [
+        { label: '配置参数', step: 2 },
+        { label: '处理完成', step: 3 },
+      ]
+    : [
+        { label: '上传文件', step: 1 },
+        { label: '配置参数', step: 2 },
+        { label: '处理完成', step: 3 },
+      ];
 
   const handleRemoveFile = (index: number) => {
     const newFiles = state.fileUpload.uploadedFiles.filter((_, i) => i !== index);
@@ -125,14 +137,24 @@ export const KnowledgeWorkflowWizard: React.FC<KnowledgeWorkflowWizardProps> = (
   return (
     <div className="max-w-4xl mx-auto p-6">
       {/* 标题和面包屑 */}
-      <div className="flex items-center gap-2 mb-6">
-        <button 
+      <div className="flex items-center space-x-4 mb-8">
+        <button
           onClick={onCancel}
-          className="flex items-center text-gray-600 hover:text-gray-900 transition-colors"
+          className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
         >
-          <ArrowLeft className="w-4 h-4 mr-1" />
-          <span>返回</span>
+          <ArrowLeft className="w-5 h-5" />
         </button>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">
+            {mode === 'settings' ? '修改知识库配置' : '创建知识库'}
+          </h1>
+          <p className="text-gray-600 mt-1">
+            {mode === 'settings' 
+              ? '调整知识库的分块配置参数，索引方式和检索设置为只读状态' 
+              : '上传文档并配置处理参数，构建您的专属知识库'
+            }
+          </p>
+        </div>
       </div>
 
       {/* 步骤指示器 */}
@@ -140,7 +162,8 @@ export const KnowledgeWorkflowWizard: React.FC<KnowledgeWorkflowWizardProps> = (
 
       {/* 步骤内容 */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-        {state.currentStep === 1 && (
+        {/* 只在上传模式下显示文件上传步骤 */}
+        {mode === 'upload' && state.currentStep === 1 && (
           <FileUploadStep
             uploadedFiles={state.fileUpload.uploadedFiles}
             uploadResults={state.fileUpload.uploadResults}
@@ -159,6 +182,7 @@ export const KnowledgeWorkflowWizard: React.FC<KnowledgeWorkflowWizardProps> = (
             onChunkingConfigChange={updateChunkingConfig}
             onEmbeddingConfigChange={updateEmbeddingConfig}
             onRetrievalConfigChange={updateRetrievalConfig}
+            mode={mode} // 传递模式给配置步骤
           />
         )}
 
@@ -179,10 +203,10 @@ export const KnowledgeWorkflowWizard: React.FC<KnowledgeWorkflowWizardProps> = (
       <div className="flex justify-between">
         <button
           onClick={prevStep}
-          disabled={state.currentStep === 1 || state.isProcessing}
+          disabled={(mode === 'upload' && state.currentStep === 1) || (mode === 'settings' && state.currentStep === 2) || state.isProcessing}
           className={cn(
             "px-6 py-2 rounded-lg font-medium transition-colors flex items-center",
-            state.currentStep === 1 || state.isProcessing
+            (mode === 'upload' && state.currentStep === 1) || (mode === 'settings' && state.currentStep === 2) || state.isProcessing
               ? "bg-gray-100 text-gray-400 cursor-not-allowed"
               : "bg-gray-200 text-gray-700 hover:bg-gray-300"
           )}

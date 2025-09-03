@@ -14,6 +14,7 @@ interface ConfigurationStepProps {
   onChunkingConfigChange: (config: Partial<ChunkingConfigStep>) => void;
   onEmbeddingConfigChange: (config: Partial<EmbeddingConfigStep>) => void;
   onRetrievalConfigChange: (config: Partial<RetrievalConfigStep>) => void;
+  mode?: 'upload' | 'settings'; // 新增模式属性
 }
 
 type ChunkingStrategy = 'parent_child' | 'general';
@@ -25,6 +26,7 @@ export const ConfigurationStep: React.FC<ConfigurationStepProps> = ({
   onChunkingConfigChange,
   onEmbeddingConfigChange,
   onRetrievalConfigChange,
+  mode = 'upload', // 默认为上传模式
 }) => {
   const [expandedStrategy, setExpandedStrategy] = useState<ChunkingStrategy | null>(chunkingConfig.strategy);
 
@@ -33,7 +35,10 @@ export const ConfigurationStep: React.FC<ConfigurationStepProps> = ({
       setExpandedStrategy(null);
     } else {
       setExpandedStrategy(strategy);
-      onChunkingConfigChange({ strategy });
+      // 在设置模式下不允许修改策略
+      if (mode !== 'settings') {
+        onChunkingConfigChange({ strategy });
+      }
     }
   };
 
@@ -76,6 +81,13 @@ export const ConfigurationStep: React.FC<ConfigurationStepProps> = ({
     <div className="space-y-8">
       <div>
         <h3 className="text-lg font-medium text-gray-900 mb-6">配置处理参数</h3>
+        {mode === 'settings' && (
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-sm text-blue-800">
+              ℹ️ 在设置模式下，索引方式和向量检索设置为只读状态，仅可修改分块配置参数。
+            </p>
+          </div>
+        )}
       </div>
 
       {/* 分块策略配置 */}
@@ -276,16 +288,23 @@ export const ConfigurationStep: React.FC<ConfigurationStepProps> = ({
         </div>
       </div>
 
-      {/* 其余配置保持不变... */}
-      <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
+      {/* 索引方式配置 */}
+      <div className={cn(
+        "border border-gray-200 rounded-lg p-6",
+        mode === 'settings' ? "bg-gray-100" : "bg-gray-50"
+      )}>
         <div className="flex items-center space-x-2 mb-4">
           <Database className="w-5 h-5 text-gray-600" />
           <h4 className="text-md font-medium text-gray-900">索引方式</h4>
+          {mode === 'settings' && (
+            <span className="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded">只读</span>
+          )}
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <label className={cn(
-            "flex items-start p-4 border rounded-lg cursor-pointer transition-colors",
+            "flex items-start p-4 border rounded-lg transition-colors",
+            mode === 'settings' ? "cursor-not-allowed" : "cursor-pointer",
             embeddingConfig.strategy === 'high_quality' 
               ? "border-blue-500 bg-blue-50" 
               : "border-gray-300 bg-white hover:border-gray-400"
@@ -295,7 +314,8 @@ export const ConfigurationStep: React.FC<ConfigurationStepProps> = ({
               name="embeddingStrategy"
               value="high_quality"
               checked={embeddingConfig.strategy === 'high_quality'}
-              onChange={(e) => onEmbeddingConfigChange({ strategy: e.target.value as 'high_quality' })}
+              onChange={(e) => mode !== 'settings' && onEmbeddingConfigChange({ strategy: e.target.value as 'high_quality' })}
+              disabled={mode === 'settings'}
               className="mr-3 mt-1"
             />
             <div>
@@ -310,7 +330,8 @@ export const ConfigurationStep: React.FC<ConfigurationStepProps> = ({
           </label>
           
           <label className={cn(
-            "flex items-start p-4 border rounded-lg cursor-pointer transition-colors",
+            "flex items-start p-4 border rounded-lg transition-colors",
+            mode === 'settings' ? "cursor-not-allowed" : "cursor-pointer",
             embeddingConfig.strategy === 'economic' 
               ? "border-blue-500 bg-blue-50" 
               : "border-gray-300 bg-white hover:border-gray-400"
@@ -320,7 +341,8 @@ export const ConfigurationStep: React.FC<ConfigurationStepProps> = ({
               name="embeddingStrategy"
               value="economic"
               checked={embeddingConfig.strategy === 'economic'}
-              onChange={(e) => onEmbeddingConfigChange({ strategy: e.target.value as 'economic' })}
+              onChange={(e) => mode !== 'settings' && onEmbeddingConfigChange({ strategy: e.target.value as 'economic' })}
+              disabled={mode === 'settings'}
               className="mr-3 mt-1"
             />
             <div>
@@ -345,8 +367,12 @@ export const ConfigurationStep: React.FC<ConfigurationStepProps> = ({
             <label className="block text-sm font-medium text-gray-700 mb-2">Embedding 模型</label>
             <select
               value={embeddingConfig.modelName || 'netease-youdao/bce-embedding-base_v1'}
-              onChange={(e) => onEmbeddingConfigChange({ modelName: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+              onChange={(e) => mode !== 'settings' && onEmbeddingConfigChange({ modelName: e.target.value })}
+              disabled={mode === 'settings'}
+              className={cn(
+                "w-full px-3 py-2 border border-gray-300 rounded-md text-sm",
+                mode === 'settings' ? "bg-gray-100 cursor-not-allowed" : ""
+              )}
             >
               <option value="netease-youdao/bce-embedding-base_v1">netease-youdao/bce-embedding-base_v1</option>
             </select>
@@ -355,10 +381,16 @@ export const ConfigurationStep: React.FC<ConfigurationStepProps> = ({
       </div>
 
       {/* 检索设置配置 */}
-      <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
+      <div className={cn(
+        "border border-gray-200 rounded-lg p-6",
+        mode === 'settings' ? "bg-gray-100" : "bg-gray-50"
+      )}>
         <div className="flex items-center space-x-2 mb-4">
           <Settings className="w-5 h-5 text-gray-600" />
           <h4 className="text-md font-medium text-gray-900">检索设置</h4>
+          {mode === 'settings' && (
+            <span className="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded">只读</span>
+          )}
         </div>
         <p className="text-sm text-gray-600 mb-4">
           了解更多关于检索方法，您可以随时在知识库设置中更改此设置。
@@ -376,7 +408,8 @@ export const ConfigurationStep: React.FC<ConfigurationStepProps> = ({
               name="retrievalStrategy"
               value="vector_search"
               checked={retrievalConfig.strategy === 'vector_search'}
-              onChange={(e) => onRetrievalConfigChange({ strategy: e.target.value as 'vector_search' })}
+              onChange={(e) => mode !== 'settings' && onRetrievalConfigChange({ strategy: e.target.value as 'vector_search' })}
+              disabled={mode === 'settings'}
               className="mr-3 mt-1"
             />
             <div className="flex-1">
@@ -392,7 +425,8 @@ export const ConfigurationStep: React.FC<ConfigurationStepProps> = ({
                       <input
                         type="checkbox"
                         checked={retrievalConfig.enableRerank}
-                        onChange={(e) => onRetrievalConfigChange({ enableRerank: e.target.checked })}
+                        onChange={(e) => mode !== 'settings' && onRetrievalConfigChange({ enableRerank: e.target.checked })}
+                        disabled={mode === 'settings'}
                         className="mr-2"
                       />
                       <span className="text-sm font-medium text-gray-700">Rerank 模型</span>
@@ -404,8 +438,12 @@ export const ConfigurationStep: React.FC<ConfigurationStepProps> = ({
                     <div>
                       <select
                         value={retrievalConfig.rerankModel || 'netease-youdao/bce-reranker-base_v1'}
-                        onChange={(e) => onRetrievalConfigChange({ rerankModel: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                        onChange={(e) => mode !== 'settings' && onRetrievalConfigChange({ rerankModel: e.target.value })}
+                        disabled={mode === 'settings'}
+                        className={cn(
+                          "w-full px-3 py-2 border border-gray-300 rounded-md text-sm",
+                          mode === 'settings' ? "bg-gray-100 cursor-not-allowed" : ""
+                        )}
                       >
                         <option value="netease-youdao/bce-reranker-base_v1">netease-youdao/bce-reranker-base_v1</option>
                       </select>
@@ -422,8 +460,12 @@ export const ConfigurationStep: React.FC<ConfigurationStepProps> = ({
                         <input
                           type="number"
                           value={retrievalConfig.topK}
-                          onChange={(e) => onRetrievalConfigChange({ topK: parseInt(e.target.value) })}
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm"
+                          onChange={(e) => mode !== 'settings' && onRetrievalConfigChange({ topK: parseInt(e.target.value) })}
+                          disabled={mode === 'settings'}
+                          className={cn(
+                            "flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm",
+                            mode === 'settings' ? "bg-gray-100 cursor-not-allowed" : ""
+                          )}
                           min="1"
                           max="100"
                         />
@@ -446,8 +488,12 @@ export const ConfigurationStep: React.FC<ConfigurationStepProps> = ({
                           type="number"
                           step="0.1"
                           value={retrievalConfig.scoreThreshold}
-                          onChange={(e) => onRetrievalConfigChange({ scoreThreshold: parseFloat(e.target.value) })}
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm"
+                          onChange={(e) => mode !== 'settings' && onRetrievalConfigChange({ scoreThreshold: parseFloat(e.target.value) })}
+                          disabled={mode === 'settings'}
+                          className={cn(
+                            "flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm",
+                            mode === 'settings' ? "bg-gray-100 cursor-not-allowed" : ""
+                          )}
                           min="0"
                           max="1"
                         />
@@ -476,7 +522,8 @@ export const ConfigurationStep: React.FC<ConfigurationStepProps> = ({
               name="retrievalStrategy"
               value="fulltext_search"
               checked={retrievalConfig.strategy === 'fulltext_search'}
-              onChange={(e) => onRetrievalConfigChange({ strategy: e.target.value as 'fulltext_search' })}
+              onChange={(e) => mode !== 'settings' && onRetrievalConfigChange({ strategy: e.target.value as 'fulltext_search' })}
+              disabled={mode === 'settings'}
               className="mr-3 mt-1"
             />
             <div>
@@ -498,7 +545,8 @@ export const ConfigurationStep: React.FC<ConfigurationStepProps> = ({
               name="retrievalStrategy"
               value="hybrid_search"
               checked={retrievalConfig.strategy === 'hybrid_search'}
-              onChange={(e) => onRetrievalConfigChange({ strategy: e.target.value as 'hybrid_search' })}
+              onChange={(e) => mode !== 'settings' && onRetrievalConfigChange({ strategy: e.target.value as 'hybrid_search' })}
+              disabled={mode === 'settings'}
               className="mr-3 mt-1"
             />
             <div>

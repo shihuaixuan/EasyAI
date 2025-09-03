@@ -73,22 +73,64 @@ const defaultRetrievalConfig: RetrievalConfigStep = {
   enableRerank: false,
 };
 
-export const useKnowledgeWorkflow = (initialKnowledgeBaseId?: string) => {
+export const useKnowledgeWorkflow = (initialKnowledgeBaseId?: string, initialStep?: number, initialConfig?: any) => {
   const { addToast } = useToast();
   
-  const [state, setState] = useState<KnowledgeWorkflowState>({
-    currentStep: 1,
-    knowledgeBaseId: initialKnowledgeBaseId,
-    fileUpload: {
-      uploadedFiles: [],
-      uploadResults: [],
-      isUploading: false,
-      uploadProgress: {},
-    },
-    chunkingConfig: defaultChunkingConfig,
-    embeddingConfig: defaultEmbeddingConfig,
-    retrievalConfig: defaultRetrievalConfig,
-    isProcessing: false,
+  const [state, setState] = useState<KnowledgeWorkflowState>(() => {
+    // 如果有初始配置，则使用初始配置覆盖默认配置
+    let chunkingConfig = defaultChunkingConfig;
+    let embeddingConfig = defaultEmbeddingConfig;
+    let retrievalConfig = defaultRetrievalConfig;
+
+    if (initialConfig) {
+      if (initialConfig.chunking) {
+        chunkingConfig = {
+          strategy: initialConfig.chunking.strategy || defaultChunkingConfig.strategy,
+          separator: initialConfig.chunking.separator || defaultChunkingConfig.separator,
+          maxLength: initialConfig.chunking.max_length || defaultChunkingConfig.maxLength,
+          overlapLength: initialConfig.chunking.overlap_length || defaultChunkingConfig.overlapLength,
+          removeExtraWhitespace: initialConfig.chunking.remove_extra_whitespace ?? defaultChunkingConfig.removeExtraWhitespace,
+          removeUrls: initialConfig.chunking.remove_urls ?? defaultChunkingConfig.removeUrls,
+          removeEmails: initialConfig.chunking.remove_emails ?? defaultChunkingConfig.removeEmails,
+          parentSeparator: initialConfig.chunking.parent_separator,
+          parentMaxLength: initialConfig.chunking.parent_max_length,
+          childSeparator: initialConfig.chunking.child_separator,
+          childMaxLength: initialConfig.chunking.child_max_length,
+        };
+      }
+
+      if (initialConfig.embedding) {
+        embeddingConfig = {
+          strategy: initialConfig.embedding.strategy || defaultEmbeddingConfig.strategy,
+          modelName: initialConfig.embedding.model_name,
+        };
+      }
+
+      if (initialConfig.retrieval) {
+        retrievalConfig = {
+          strategy: initialConfig.retrieval.strategy || defaultRetrievalConfig.strategy,
+          topK: initialConfig.retrieval.top_k || defaultRetrievalConfig.topK,
+          scoreThreshold: initialConfig.retrieval.score_threshold ?? defaultRetrievalConfig.scoreThreshold,
+          enableRerank: initialConfig.retrieval.enable_rerank ?? defaultRetrievalConfig.enableRerank,
+          rerankModel: initialConfig.retrieval.rerank_model,
+        };
+      }
+    }
+
+    return {
+      currentStep: initialStep || 1,
+      knowledgeBaseId: initialKnowledgeBaseId,
+      fileUpload: {
+        uploadedFiles: [],
+        uploadResults: [],
+        isUploading: false,
+        uploadProgress: {},
+      },
+      chunkingConfig,
+      embeddingConfig,
+      retrievalConfig,
+      isProcessing: false,
+    };
   });
 
   // 更新文件上传状态

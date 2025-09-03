@@ -119,16 +119,14 @@ class DocumentSqlRepository(DocumentRepository):
         return document
     
     async def delete_by_id(self, document_id: str) -> bool:
-        """根据ID删除文档（软删除）"""
+        """根据ID删除文档（硬删除）"""
         sql = """
-        UPDATE documents 
-        SET is_active = false, updated_at = :updated_at
+        DELETE FROM documents 
         WHERE id = :id
         """
         
         result = await self.session.execute(text(sql), {
-            "id": int(document_id),
-            "updated_at": datetime.now()
+            "id": int(document_id)
         })
         # 注意：事务提交由调用方处理，不在这里提交
         return result.rowcount > 0

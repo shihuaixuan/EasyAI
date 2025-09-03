@@ -4,8 +4,9 @@ import { cn } from '../utils/cn';
 import { useToast } from '../hooks/useToast';
 import { knowledgeService, KnowledgeBase, CreateKnowledgeBaseRequest } from '../services/knowledgeService';
 import { KnowledgeWorkflowWizard } from '../components/knowledge/KnowledgeWorkflowWizard';
+import { KnowledgeBaseDetail } from '../components/knowledge/KnowledgeBaseDetail';
 
-type ViewMode = 'list' | 'create' | 'workflow';
+type ViewMode = 'list' | 'create' | 'workflow' | 'detail';
 
 interface CreateKnowledgeBaseModalProps {
   isOpen: boolean;
@@ -149,6 +150,7 @@ export default function Knowledge() {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
   const [selectedKnowledgeBase, setSelectedKnowledgeBase] = useState<KnowledgeBase | null>(null);
+  const [isCheckingFiles, setIsCheckingFiles] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -185,9 +187,32 @@ export default function Knowledge() {
   };
 
   // 选择知识库并进入工作流
-  const handleSelectKnowledgeBase = (knowledgeBase: KnowledgeBase) => {
+  const handleSelectKnowledgeBase = async (knowledgeBase: KnowledgeBase) => {
     setSelectedKnowledgeBase(knowledgeBase);
-    setViewMode('workflow');
+    setIsCheckingFiles(true);
+    
+    try {
+      // 检查知识库是否有文件
+      const hasFiles = await knowledgeService.hasFiles(knowledgeBase.knowledge_base_id);
+      
+      if (hasFiles) {
+        // 如果有文件，显示详情页面
+        setViewMode('detail');
+      } else {
+        // 如果没有文件，显示工作流向导（上传模式）
+        setWorkflowMode('upload');
+        setWorkflowInitialStep(1);
+        setWorkflowConfig(null);
+        setViewMode('workflow');
+      }
+    } catch (error) {
+      addToast('检查知识库状态失败', 'error');
+      console.error('检查知识库状态失败:', error);
+      // 出错时默认显示工作流向导
+      setViewMode('workflow');
+    } finally {
+      setIsCheckingFiles(false);
+    }
   };
 
   // 完成工作流
@@ -201,6 +226,43 @@ export default function Knowledge() {
   const handleWorkflowCancel = () => {
     setViewMode('list');
     setSelectedKnowledgeBase(null);
+  };
+
+  // 返回列表
+  const handleBackToList = () => {
+    setViewMode('list');
+    setSelectedKnowledgeBase(null);
+    loadKnowledgeBases();
+  };
+
+  // 从详情页面上传更多文件
+  const handleUploadMoreFiles = () => {
+    // 重置工作流配置，从第一步开始
+    setWorkflowConfig(null);
+    setWorkflowInitialStep(1);
+    setWorkflowMode('upload'); // 设置为上传模式
+    setViewMode('workflow');
+  };
+
+  // 从详情页面配置工作流
+  const [workflowConfig, setWorkflowConfig] = useState<any>(null);
+  const [workflowInitialStep, setWorkflowInitialStep] = useState<number>(1);
+  const [workflowMode, setWorkflowMode] = useState<'upload' | 'settings'>('upload');
+  
+  const handleConfigureWorkflow = async (knowledgeBaseId: string) => {
+    try {
+      // 获取知识库配置
+      const config = await knowledgeService.getKnowledgeBaseConfig(knowledgeBaseId);
+      // 设置配置数据和初始步骤
+      setWorkflowConfig(config);
+      setWorkflowInitialStep(2); // 直接跳转到第二步（配置步骤）
+      setWorkflowMode('settings'); // 设置为设置模式
+      // 切换到工作流视图
+      setViewMode('workflow');
+    } catch (error) {
+      addToast('获取知识库配置失败', 'error');
+      console.error('获取知识库配置失败:', error);
+    }
   };
 
   // 过滤知识库
@@ -222,6 +284,20 @@ export default function Knowledge() {
         knowledgeBaseId={selectedKnowledgeBase.knowledge_base_id}
         onComplete={handleWorkflowComplete}
         onCancel={handleWorkflowCancel}
+        initialStep={workflowInitialStep}
+        initialConfig={workflowConfig}
+        mode={workflowMode}
+      />
+    );
+  }
+
+  if (viewMode === 'detail' && selectedKnowledgeBase) {
+    return (
+      <KnowledgeBaseDetail
+        knowledgeBaseId={selectedKnowledgeBase.knowledge_base_id}
+        onBack={handleBackToList}
+        onUploadMore={handleUploadMoreFiles}
+        onConfigureWorkflow={handleConfigureWorkflow}
       />
     );
   }
@@ -257,10 +333,10 @@ export default function Knowledge() {
       </div>
 
       {/* 知识库列表 */}
-      {isLoading ? (
+      {isLoading || isCheckingFiles ? (
         <div className="text-center py-12">
           <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">加载中...</p>
+          <p className="text-gray-600">{isCheckingFiles ? '检查知识库状态中...' : '加载中...'}</p>
         </div>
       ) : filteredKnowledgeBases.length === 0 ? (
         <div className="text-center py-12">

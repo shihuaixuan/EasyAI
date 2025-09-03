@@ -135,6 +135,38 @@ class KnowledgeService {
   }
 
   /**
+   * 获取知识库配置
+   */
+  async getKnowledgeBaseConfig(knowledgeBaseId: string): Promise<WorkflowConfig> {
+    try {
+      // 使用现有的getKnowledgeBase接口获取完整知识库信息
+      const knowledgeBase = await this.getKnowledgeBase(knowledgeBaseId);
+      
+      // 从知识库信息中提取embedding_model_config
+      if (knowledgeBase.embedding_model_config) {
+        return knowledgeBase.embedding_model_config;
+      } else {
+        // 如果没有配置，返回默认配置
+        return {
+          embedding: {
+            provider: 'openai',
+            model_name: 'text-embedding-ada-002'
+          },
+          retrieval: {
+            strategy: 'vector_search',
+            top_k: 10,
+            score_threshold: 0.7,
+            enable_rerank: false
+          }
+        };
+      }
+    } catch (error) {
+      console.error('获取知识库配置失败:', error);
+      throw error;
+    }
+  }
+
+  /**
    * 更新工作流配置
    */
   async updateWorkflowConfig(knowledgeBaseId: string, config: WorkflowConfig): Promise<any> {
@@ -231,6 +263,19 @@ class KnowledgeService {
   }
 
   /**
+   * 检查知识库是否有文件
+   */
+  async hasFiles(knowledgeBaseId: string): Promise<boolean> {
+    try {
+      const filesData = await this.getFiles(knowledgeBaseId);
+      return filesData.files && filesData.files.length > 0;
+    } catch (error) {
+      console.error('检查知识库文件状态失败:', error);
+      return false;
+    }
+  }
+
+  /**
    * 获取支持的文件类型
    */
   async getSupportedFileTypes(): Promise<any> {
@@ -245,6 +290,25 @@ class KnowledgeService {
       return await response.json();
     } catch (error) {
       console.error('获取支持的文件类型失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 删除文件
+   */
+  async deleteFile(knowledgeBaseId: string, fileId: string): Promise<void> {
+    try {
+      const response = await fetch(`${API_BASE}/knowledge-bases/${knowledgeBaseId}/files/${fileId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || '删除文件失败');
+      }
+    } catch (error) {
+      console.error('删除文件失败:', error);
       throw error;
     }
   }

@@ -92,10 +92,17 @@ class DocumentChunkSqlRepository(DocumentChunkRepository):
         return True
     
     async def delete_by_document_id(self, document_id: str) -> int:
-        """根据文档ID删除所有文档块"""
-        sql = "UPDATE chunks SET is_active = false WHERE document_id = :document_id"
-        await self.session.execute(text(sql), {"document_id": int(document_id)})
-        return 0
+        """根据文档ID删除所有文档块（硬删除，包括embedding向量）"""
+        # 先查询要删除的chunks数量
+        count_sql = "SELECT COUNT(*) FROM chunks WHERE document_id = :document_id"
+        count_result = await self.session.execute(text(count_sql), {"document_id": int(document_id)})
+        deleted_count = count_result.scalar() or 0
+        
+        # 硬删除chunks记录（包括vector字段中的embedding向量）
+        delete_sql = "DELETE FROM chunks WHERE document_id = :document_id"
+        await self.session.execute(text(delete_sql), {"document_id": int(document_id)})
+        
+        return deleted_count
     
     async def delete_by_knowledge_base_id(self, knowledge_base_id: str) -> int:
         """根据知识库ID删除所有文档块"""
