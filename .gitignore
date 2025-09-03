@@ -203,6 +203,7 @@ storage/
 uploads/
 static/uploads/
 media/
+sql/
 
 # 临时文件
 tmp/

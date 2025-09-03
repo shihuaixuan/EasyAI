@@ -9,9 +9,9 @@ from datetime import datetime
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ...domain.knowledge.entities.document_chunk import DocumentChunk
-from ...domain.knowledge.repositories.document_chunk_repository import DocumentChunkRepository
-from ...domain.knowledge.vo.search_query import SearchQuery, SearchResult
+from ....domain.knowledge.entities.document_chunk import DocumentChunk
+from ....domain.knowledge.repositories.document_chunk_repository import DocumentChunkRepository
+from ....domain.knowledge.vo.search_query import SearchQuery, SearchResult
 
 
 class DocumentChunkSqlRepository(DocumentChunkRepository):

@@ -7,7 +7,7 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from ...infrastructure.database import get_database_session
-from ...infrastructure.repositories.knowledge_base_database_repository_impl import KnowledgeBaseDatabaseRepositoryImpl
+from ...infrastructure.repositories.knowledge.knowledge_base_database_repository_impl import KnowledgeBaseDatabaseRepositoryImpl
 from ...application.services.knowledge_application_service import KnowledgeApplicationService
 from ...domain.knowledge.services.knowledge_base_domain_service import KnowledgeBaseDomainService
 from ...application.dto.knowledge_base_dto import (
@@ -25,7 +25,7 @@ from ...application.dto.workflow_dto import (
     WorkflowConfigRequest,
     WorkflowConfigResponse
 )
-from ..dependencies import get_knowledge_service, get_current_user_id
+from ..dependencies import get_current_user_id
 
 router = APIRouter(prefix="/api/knowledge", tags=["知识库"])
 
@@ -176,8 +176,8 @@ async def get_knowledge_base_overview(
     """获取知识库概览"""
     try:
         # 创建仓储实例
-        from ...infrastructure.repositories.document_sql_repository import DocumentSqlRepository
-        from ...infrastructure.repositories.document_chunk_sql_repository import DocumentChunkSqlRepository
+        from ...infrastructure.repositories.knowledge.document_sql_repository import DocumentSqlRepository
+        from ...infrastructure.repositories.knowledge.document_chunk_sql_repository import DocumentChunkSqlRepository
         
         knowledge_base_repo = KnowledgeBaseDatabaseRepositoryImpl(session)
         document_repo = DocumentSqlRepository(session)
@@ -231,8 +231,8 @@ async def update_workflow_config(
     """更新工作流配置"""
     try:
         # 创建使用当前请求会话的仓储实例
-        from ...infrastructure.repositories.document_sql_repository import DocumentSqlRepository
-        from ...infrastructure.repositories.document_chunk_sql_repository import DocumentChunkSqlRepository
+        from ...infrastructure.repositories.knowledge.document_sql_repository import DocumentSqlRepository
+        from ...infrastructure.repositories.knowledge.document_chunk_sql_repository import DocumentChunkSqlRepository
         
         knowledge_base_repo = KnowledgeBaseDatabaseRepositoryImpl(session)
         document_repo = DocumentSqlRepository(session)
@@ -327,8 +327,8 @@ async def upload_file(
     """上传单个文件"""
     try:
         # 创建使用当前请求会话的仓储实例
-        from ...infrastructure.repositories.document_sql_repository import DocumentSqlRepository
-        from ...infrastructure.repositories.document_chunk_sql_repository import DocumentChunkSqlRepository
+        from ...infrastructure.repositories.knowledge.document_sql_repository import DocumentSqlRepository
+        from ...infrastructure.repositories.knowledge.document_chunk_sql_repository import DocumentChunkSqlRepository
         from ...domain.knowledge.services.file_upload_service import FileUploadService
         from ...domain.knowledge.services.document_parser_service import DocumentParserService, DocumentParserRegistry
         from ...domain.knowledge.services.chunking.document_chunking_service import DocumentChunkingService
@@ -390,8 +390,8 @@ async def upload_files_batch(
     """批量上传文件"""
     try:
         # 创建使用当前请求会话的仓储实例
-        from ...infrastructure.repositories.document_sql_repository import DocumentSqlRepository
-        from ...infrastructure.repositories.document_chunk_sql_repository import DocumentChunkSqlRepository
+        from ...infrastructure.repositories.knowledge.document_sql_repository import DocumentSqlRepository
+        from ...infrastructure.repositories.knowledge.document_chunk_sql_repository import DocumentChunkSqlRepository
         from ...domain.knowledge.services.file_upload_service import FileUploadService
         from ...domain.knowledge.services.document_parser_service import DocumentParserService, DocumentParserRegistry
         from ...domain.knowledge.services.chunking.document_chunking_service import DocumentChunkingService
@@ -453,8 +453,8 @@ async def list_files(
     """获取文件列表"""
     try:
         # 创建使用当前请求会话的仓储实例
-        from ...infrastructure.repositories.document_sql_repository import DocumentSqlRepository
-        from ...infrastructure.repositories.document_chunk_sql_repository import DocumentChunkSqlRepository
+        from ...infrastructure.repositories.knowledge.document_sql_repository import DocumentSqlRepository
+        from ...infrastructure.repositories.knowledge.document_chunk_sql_repository import DocumentChunkSqlRepository
         from ...domain.knowledge.services.file_upload_service import FileUploadService
         from ...domain.knowledge.services.document_parser_service import DocumentParserService, DocumentParserRegistry
         from ...domain.knowledge.services.chunking.document_chunking_service import DocumentChunkingService
@@ -512,8 +512,8 @@ async def delete_knowledge_base(
     """删除知识库"""
     try:
         # 创建使用当前请求会话的仓储实例
-        from ...infrastructure.repositories.document_sql_repository import DocumentSqlRepository
-        from ...infrastructure.repositories.document_chunk_sql_repository import DocumentChunkSqlRepository
+        from ...infrastructure.repositories.knowledge.document_sql_repository import DocumentSqlRepository
+        from ...infrastructure.repositories.knowledge.document_chunk_sql_repository import DocumentChunkSqlRepository
         from ...domain.knowledge.services.file_upload_service import FileUploadService
         from ...domain.knowledge.services.document_parser_service import DocumentParserService, DocumentParserRegistry
         from ...domain.knowledge.services.chunking.document_chunking_service import DocumentChunkingService
@@ -630,8 +630,8 @@ async def start_knowledge_processing(
     """开始知识库处理流程"""
     try:
         # 创建使用当前请求会话的仓储实例
-        from ...infrastructure.repositories.document_sql_repository import DocumentSqlRepository
-        from ...infrastructure.repositories.document_chunk_sql_repository import DocumentChunkSqlRepository
+        from ...infrastructure.repositories.knowledge.document_sql_repository import DocumentSqlRepository
+        from ...infrastructure.repositories.knowledge.document_chunk_sql_repository import DocumentChunkSqlRepository
         from ...domain.knowledge.services.file_upload_service import FileUploadService
         from ...domain.knowledge.services.document_parser_service import DocumentParserService, DocumentParserRegistry
         from ...domain.knowledge.services.chunking.document_chunking_service import DocumentChunkingService

@@ -8,9 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, delete
 from sqlalchemy.exc import IntegrityError
 
-from ...domain.knowledge.entities.knowledge_base import KnowledgeBase
-from ...domain.knowledge.repositories.knowledge_base_repository import KnowledgeBaseRepository
-from ..models.knowledge_models import DatasetModel
+from ....domain.knowledge.entities.knowledge_base import KnowledgeBase
+from ....domain.knowledge.repositories.knowledge_base_repository import KnowledgeBaseRepository
+from ...models.knowledge_models import DatasetModel
 
 
 class KnowledgeBaseDatabaseRepositoryImpl(KnowledgeBaseRepository):

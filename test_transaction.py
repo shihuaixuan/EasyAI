@@ -11,9 +11,9 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from src.infrastructure.database import get_async_session
-from src.infrastructure.repositories.document_sql_repository import DocumentSqlRepository
-from src.infrastructure.repositories.document_chunk_sql_repository import DocumentChunkSqlRepository
-from src.infrastructure.repositories.knowledge_base_database_repository_impl import KnowledgeBaseDatabaseRepositoryImpl
+from src.infrastructure.repositories.knowledge.document_sql_repository import DocumentSqlRepository
+from src.infrastructure.repositories.knowledge.document_chunk_sql_repository import DocumentChunkSqlRepository
+from src.infrastructure.repositories.knowledge.knowledge_base_database_repository_impl import KnowledgeBaseDatabaseRepositoryImpl
 from src.domain.knowledge.entities.document import Document
 from src.domain.knowledge.entities.document_chunk import DocumentChunk
 from src.domain.knowledge.entities.knowledge_base import KnowledgeBase

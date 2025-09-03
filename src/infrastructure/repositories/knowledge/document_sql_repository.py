@@ -7,8 +7,8 @@ from datetime import datetime
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ...domain.knowledge.entities.document import Document
-from ...domain.knowledge.repositories.document_repository import DocumentRepository
+from ....domain.knowledge.entities.document import Document
+from ....domain.knowledge.repositories.document_repository import DocumentRepository
 
 
 class DocumentSqlRepository(DocumentRepository):

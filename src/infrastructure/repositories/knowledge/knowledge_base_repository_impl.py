@@ -6,8 +6,8 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 import uuid
 
-from ...domain.knowledge.entities.knowledge_base import KnowledgeBase
-from ...domain.knowledge.repositories.knowledge_base_repository import KnowledgeBaseRepository
+from ....domain.knowledge.entities.knowledge_base import KnowledgeBase
+from ....domain.knowledge.repositories.knowledge_base_repository import KnowledgeBaseRepository
 
 
 class KnowledgeBaseRepositoryImpl(KnowledgeBaseRepository):
