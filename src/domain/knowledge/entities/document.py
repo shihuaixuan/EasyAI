@@ -18,6 +18,7 @@ class Document:
     file_size: int
     knowledge_base_id: str
     document_id: Optional[str] = None
+    file_path: Optional[str] = None  # 文件存储路径
     original_path: Optional[str] = None
     content_hash: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None

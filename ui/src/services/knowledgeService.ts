@@ -267,6 +267,30 @@ class KnowledgeService {
       throw error;
     }
   }
+
+  /**
+   * 开始知识库处理流程
+   */
+  async startKnowledgeProcessing(knowledgeBaseId: string): Promise<any> {
+    try {
+      const response = await fetch(`${API_BASE}/knowledge-bases/${knowledgeBaseId}/process`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || '开始处理失败');
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('开始知识库处理失败:', error);
+      throw error;
+    }
+  }
 }
 
 export const knowledgeService = new KnowledgeService();

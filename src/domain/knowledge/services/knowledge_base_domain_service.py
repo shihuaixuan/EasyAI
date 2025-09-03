@@ -80,14 +80,96 @@ class KnowledgeBaseDomainService:
             更新后的知识库对象
             
         Raises:
-            ValueError: 知识库不存在
+            ValueError: 知识库不存在或配置无效
         """
+        # 验证知识库是否存在
         knowledge_base = await self.knowledge_base_repo.find_by_id(knowledge_base_id)
         if not knowledge_base:
             raise ValueError(f"知识库不存在: {knowledge_base_id}")
         
-        knowledge_base.update_config(config)
-        return await self.knowledge_base_repo.update(knowledge_base)
+        # 验证配置格式
+        if not isinstance(config, dict):
+            raise ValueError("配置必须是字典格式")
+        
+        # 验证配置的基本结构
+        self._validate_config_structure(config)
+        
+        # 备份旧配置
+        old_config = knowledge_base.config.copy() if knowledge_base.config else {}
+        
+        try:
+            # 更新配置
+            knowledge_base.update_config(config)
+            
+            # 保存到数据库
+            updated_kb = await self.knowledge_base_repo.update(knowledge_base)
+            
+            # 验证更新是否成功
+            if not updated_kb.config or not self._config_contains_updates(updated_kb.config, config):
+                raise ValueError("配置更新验证失败，可能没有正确保存到数据库")
+            
+            return updated_kb
+            
+        except Exception as e:
+            # 如果更新失败，尝试恢复旧配置
+            try:
+                knowledge_base.config = old_config
+                await self.knowledge_base_repo.update(knowledge_base)
+            except:
+                pass  # 忽略恢复过程中的错误
+            
+            raise ValueError(f"更新知识库配置失败: {str(e)}")
+    
+    def _validate_config_structure(self, config: Dict[str, Any]) -> None:
+        """验证配置结构的基本合法性"""
+        required_sections = ['chunking', 'embedding', 'retrieval']
+        
+        for section in required_sections:
+            if section not in config:
+                raise ValueError(f"配置缺少必需的部分: {section}")
+            
+            if not isinstance(config[section], dict):
+                raise ValueError(f"配置部分 {section} 必须是字典格式")
+        
+        # 验证分块配置
+        chunking_config = config['chunking']
+        required_chunking_fields = ['strategy', 'max_length', 'overlap_length']
+        for field in required_chunking_fields:
+            if field not in chunking_config:
+                raise ValueError(f"分块配置缺少必需字段: {field}")
+        
+        # 验证embedding配置
+        embedding_config = config['embedding']
+        if 'strategy' not in embedding_config:
+            raise ValueError("embedding配置缺少strategy字段")
+        
+        # 验证检索配置
+        retrieval_config = config['retrieval']
+        required_retrieval_fields = ['strategy', 'top_k']
+        for field in required_retrieval_fields:
+            if field not in retrieval_config:
+                raise ValueError(f"检索配置缺少必需字段: {field}")
+    
+    def _config_contains_updates(self, saved_config: Dict[str, Any], target_config: Dict[str, Any]) -> bool:
+        """验证保存的配置是否包含目标配置的更新"""
+        try:
+            for section_name, section_config in target_config.items():
+                if section_name not in saved_config:
+                    return False
+                
+                if isinstance(section_config, dict):
+                    for key, value in section_config.items():
+                        if key not in saved_config[section_name]:
+                            return False
+                        if saved_config[section_name][key] != value:
+                            return False
+                else:
+                    if saved_config[section_name] != section_config:
+                        return False
+            
+            return True
+        except Exception:
+            return False
     
     async def update_knowledge_base_statistics(self, knowledge_base_id: str) -> KnowledgeBase:
         """更新知识库统计信息

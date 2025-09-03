@@ -247,17 +247,26 @@ export const useKnowledgeWorkflow = (initialKnowledgeBaseId?: string) => {
         config.chunking.child_max_length = state.chunkingConfig.childMaxLength;
       }
 
-      // 保存配置
-      const result = await knowledgeService.updateWorkflowConfig(state.knowledgeBaseId, config);
+      // 1. 先保存配置
+      await knowledgeService.updateWorkflowConfig(state.knowledgeBaseId, config);
+      addToast('配置保存成功', 'success');
 
+      // 2. 开始处理流程
+      const processingResult = await knowledgeService.startKnowledgeProcessing(state.knowledgeBaseId);
+      
       setState(prev => ({
         ...prev,
         isProcessing: false,
-        processingResults: result,
+        processingResults: processingResult,
       }));
 
-      addToast('配置保存成功，开始处理文档...', 'success');
-      return result;
+      if (processingResult.success) {
+        addToast(`处理完成！${processingResult.message}`, 'success');
+      } else {
+        addToast(`处理失败: ${processingResult.message || '未知错误'}`, 'error');
+      }
+      
+      return processingResult;
     } catch (error) {
       setState(prev => ({ ...prev, isProcessing: false }));
       addToast(`处理失败: ${error instanceof Error ? error.message : '未知错误'}`, 'error');

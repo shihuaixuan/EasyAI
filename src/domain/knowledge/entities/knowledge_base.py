@@ -41,9 +41,21 @@ class KnowledgeBase:
     
     def update_config(self, config: Dict[str, Any]) -> None:
         """更新知识库配置"""
+        if not isinstance(config, dict):
+            raise ValueError("配置必须是字典格式")
+        
         if self.config is None:
             self.config = {}
-        self.config.update(config)
+        
+        # 深度更新配置，确保嵌套字典也被正确更新
+        for key, value in config.items():
+            if isinstance(value, dict) and key in self.config and isinstance(self.config[key], dict):
+                # 对于嵌套字典，进行深度合并
+                self.config[key].update(value)
+            else:
+                # 直接覆盖
+                self.config[key] = value
+        
         self.updated_at = datetime.now()
     
     def deactivate(self) -> None:

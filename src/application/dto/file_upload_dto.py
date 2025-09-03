@@ -25,6 +25,7 @@ class FileUploadResponse(BaseModel):
     content_hash: Optional[str] = None
     error_message: Optional[str] = None
     created_at: Optional[datetime] = None
+    chunk_count: Optional[int] = None
 
 
 class FileUploadBatchRequest(BaseModel):

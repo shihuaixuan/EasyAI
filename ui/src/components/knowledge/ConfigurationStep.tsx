@@ -2,8 +2,8 @@
  * 分块配置步骤组件
  */
 
-import React from 'react';
-import { FileText, Database, Settings, HelpCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import { FileText, Database, Settings, HelpCircle, ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import { ChunkingConfigStep, EmbeddingConfigStep, RetrievalConfigStep } from '../../hooks/useKnowledgeWorkflow';
 
@@ -16,6 +16,8 @@ interface ConfigurationStepProps {
   onRetrievalConfigChange: (config: Partial<RetrievalConfigStep>) => void;
 }
 
+type ChunkingStrategy = 'parent_child' | 'general';
+
 export const ConfigurationStep: React.FC<ConfigurationStepProps> = ({
   chunkingConfig,
   embeddingConfig,
@@ -24,6 +26,52 @@ export const ConfigurationStep: React.FC<ConfigurationStepProps> = ({
   onEmbeddingConfigChange,
   onRetrievalConfigChange,
 }) => {
+  const [expandedStrategy, setExpandedStrategy] = useState<ChunkingStrategy | null>(chunkingConfig.strategy);
+
+  const handleStrategyClick = (strategy: ChunkingStrategy) => {
+    if (expandedStrategy === strategy) {
+      setExpandedStrategy(null);
+    } else {
+      setExpandedStrategy(strategy);
+      onChunkingConfigChange({ strategy });
+    }
+  };
+
+  const renderTextPreprocessingOptions = () => (
+    <div className="border-t pt-4">
+      <h5 className="text-sm font-medium text-gray-900 mb-3">文本预处理规则</h5>
+      <div className="space-y-2">
+        <label className="flex items-center">
+          <input
+            type="checkbox"
+            checked={chunkingConfig.removeExtraWhitespace}
+            onChange={(e) => onChunkingConfigChange({ removeExtraWhitespace: e.target.checked })}
+            className="mr-2"
+          />
+          <span className="text-sm text-gray-700">替换掉连续的空格、换行符和制表符</span>
+        </label>
+        <label className="flex items-center">
+          <input
+            type="checkbox"
+            checked={chunkingConfig.removeUrls}
+            onChange={(e) => onChunkingConfigChange({ removeUrls: e.target.checked })}
+            className="mr-2"
+          />
+          <span className="text-sm text-gray-700">删除所有 URL</span>
+        </label>
+        <label className="flex items-center">
+          <input
+            type="checkbox"
+            checked={chunkingConfig.removeEmails}
+            onChange={(e) => onChunkingConfigChange({ removeEmails: e.target.checked })}
+            className="mr-2"
+          />
+          <span className="text-sm text-gray-700">删除所有电子邮件地址</span>
+        </label>
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-8">
       <div>
@@ -31,223 +79,204 @@ export const ConfigurationStep: React.FC<ConfigurationStepProps> = ({
       </div>
 
       {/* 分块策略配置 */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-        <div className="flex items-center space-x-2 mb-4">
-          <FileText className="w-5 h-5 text-blue-600" />
-          <h4 className="text-md font-medium text-gray-900">父子分段</h4>
+      <div className="space-y-4">
+        {/* 父子分块 */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg">
+          <div 
+            className="p-4 cursor-pointer"
+            onClick={() => handleStrategyClick('parent_child')}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="radio"
+                    name="chunkingStrategy"
+                    value="parent_child"
+                    checked={chunkingConfig.strategy === 'parent_child'}
+                    onChange={() => {}}
+                    className="mr-2"
+                  />
+                  <FileText className="w-5 h-5 text-blue-600" />
+                  <h4 className="text-md font-medium text-gray-900">父子分块</h4>
+                </div>
+              </div>
+              {expandedStrategy === 'parent_child' ? 
+                <ChevronDown className="w-5 h-5 text-gray-400" /> : 
+                <ChevronRight className="w-5 h-5 text-gray-400" />
+              }
+            </div>
+            <p className="text-sm text-gray-600 mt-2 ml-7">
+              使用父子模式时，子块用于检索，父块用作上下文
+            </p>
+          </div>
+          
+          {expandedStrategy === 'parent_child' && (
+            <div className="px-4 pb-4 space-y-4">
+              {/* 父块配置 */}
+              <div className="border-t pt-4">
+                <h5 className="text-sm font-medium text-gray-900 mb-3">父块用作上下文</h5>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      分段标识符
+                      <HelpCircle className="inline w-3 h-3 ml-1 text-gray-400" />
+                    </label>
+                    <input
+                      type="text"
+                      value={chunkingConfig.parentSeparator || '\n\n'}
+                      onChange={(e) => onChunkingConfigChange({ parentSeparator: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                      placeholder="\n\n"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">分段最大长度</label>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="number"
+                        value={chunkingConfig.parentMaxLength || 1024}
+                        onChange={(e) => onChunkingConfigChange({ parentMaxLength: parseInt(e.target.value) })}
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm"
+                        min="1"
+                        max="10000"
+                      />
+                      <span className="text-sm text-gray-500">characters</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* 子块配置 */}
+              <div className="border-t pt-4">
+                <h5 className="text-sm font-medium text-gray-900 mb-3">子块用于检索</h5>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      分段标识符
+                      <HelpCircle className="inline w-3 h-3 ml-1 text-gray-400" />
+                    </label>
+                    <input
+                      type="text"
+                      value={chunkingConfig.childSeparator || '\n'}
+                      onChange={(e) => onChunkingConfigChange({ childSeparator: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                      placeholder="\n"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">分段最大长度</label>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="number"
+                        value={chunkingConfig.childMaxLength || 512}
+                        onChange={(e) => onChunkingConfigChange({ childMaxLength: parseInt(e.target.value) })}
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm"
+                        min="1"
+                        max="5000"
+                      />
+                      <span className="text-sm text-gray-500">characters</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {renderTextPreprocessingOptions()}
+            </div>
+          )}
         </div>
-        <p className="text-sm text-gray-600 mb-4">
-          使用父子模式时，子块用于检索，父块用作上下文
-        </p>
-        
-        <div className="space-y-4">
-          {/* 策略选择 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <label className={cn(
-              "flex items-center p-4 border rounded-lg cursor-pointer transition-colors",
-              chunkingConfig.strategy === 'parent_child' 
-                ? "border-blue-500 bg-blue-50" 
-                : "border-gray-300 bg-white hover:border-gray-400"
-            )}>
-              <input
-                type="radio"
-                name="chunkingStrategy"
-                value="parent_child"
-                checked={chunkingConfig.strategy === 'parent_child'}
-                onChange={(e) => onChunkingConfigChange({ strategy: e.target.value as 'parent_child' })}
-                className="mr-3"
-              />
-              <div>
-                <div className="font-medium text-gray-900">段落</div>
-                <div className="text-sm text-gray-600">
-                  此模式根据分隔符和最大块长度将文本拆分为段落，使用拆分文本作为检索的父块
-                </div>
-              </div>
-            </label>
-            
-            <label className={cn(
-              "flex items-center p-4 border rounded-lg cursor-pointer transition-colors",
-              chunkingConfig.strategy === 'general' 
-                ? "border-blue-500 bg-blue-50" 
-                : "border-gray-300 bg-white hover:border-gray-400"
-            )}>
-              <input
-                type="radio"
-                name="chunkingStrategy"
-                value="general"
-                checked={chunkingConfig.strategy === 'general'}
-                onChange={(e) => onChunkingConfigChange({ strategy: e.target.value as 'general' })}
-                className="mr-3"
-              />
-              <div>
-                <div className="font-medium text-gray-900">全文</div>
-                <div className="text-sm text-gray-600">
-                  整个文档用作父块并直接检索。请注意，出于性能原因，超过 10000 个标记的文本将被自动截断。
-                </div>
-              </div>
-            </label>
-          </div>
 
-          {/* 父块配置 - 仅在父子模式下显示 */}
-          {chunkingConfig.strategy === 'parent_child' && (
-            <div className="border-t pt-4">
-              <h5 className="text-sm font-medium text-gray-900 mb-3">父块用作上下文</h5>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    分段标识符
-                    <HelpCircle className="inline w-3 h-3 ml-1 text-gray-400" />
-                  </label>
+        {/* 普通分块 */}
+        <div className="bg-gray-50 border border-gray-200 rounded-lg">
+          <div 
+            className="p-4 cursor-pointer"
+            onClick={() => handleStrategyClick('general')}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2">
                   <input
-                    type="text"
-                    value={chunkingConfig.parentSeparator || '\n\n'}
-                    onChange={(e) => onChunkingConfigChange({ parentSeparator: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                    placeholder="\n\n"
+                    type="radio"
+                    name="chunkingStrategy"
+                    value="general"
+                    checked={chunkingConfig.strategy === 'general'}
+                    onChange={() => {}}
+                    className="mr-2"
                   />
+                  <FileText className="w-5 h-5 text-gray-600" />
+                  <h4 className="text-md font-medium text-gray-900">普通分块</h4>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">分段最大长度</label>
-                  <div className="flex items-center space-x-2">
+              </div>
+              {expandedStrategy === 'general' ? 
+                <ChevronDown className="w-5 h-5 text-gray-400" /> : 
+                <ChevronRight className="w-5 h-5 text-gray-400" />
+              }
+            </div>
+            <p className="text-sm text-gray-600 mt-2 ml-7">
+              按照指定的分隔符和最大块长度将文本拆分为常规块
+            </p>
+          </div>
+          
+          {expandedStrategy === 'general' && (
+            <div className="px-4 pb-4 space-y-4">
+              {/* 普通分块配置 */}
+              <div className="border-t pt-4">
+                <h5 className="text-sm font-medium text-gray-900 mb-3">分块设置</h5>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      分段标识符
+                      <HelpCircle className="inline w-3 h-3 ml-1 text-gray-400" />
+                    </label>
                     <input
-                      type="number"
-                      value={chunkingConfig.parentMaxLength || 1024}
-                      onChange={(e) => onChunkingConfigChange({ parentMaxLength: parseInt(e.target.value) })}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm"
-                      min="1"
-                      max="10000"
+                      type="text"
+                      value={chunkingConfig.separator}
+                      onChange={(e) => onChunkingConfigChange({ separator: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                      placeholder="\n\n"
                     />
-                    <span className="text-sm text-gray-500">characters</span>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">分段最大长度</label>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="number"
+                        value={chunkingConfig.maxLength}
+                        onChange={(e) => onChunkingConfigChange({ maxLength: parseInt(e.target.value) })}
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm"
+                        min="1"
+                        max="10000"
+                      />
+                      <span className="text-sm text-gray-500">characters</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      分段重叠长度
+                      <HelpCircle className="inline w-3 h-3 ml-1 text-gray-400" />
+                    </label>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="number"
+                        value={chunkingConfig.overlapLength}
+                        onChange={(e) => onChunkingConfigChange({ overlapLength: parseInt(e.target.value) })}
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm"
+                        min="0"
+                        max="1000"
+                      />
+                      <span className="text-sm text-gray-500">characters</span>
+                    </div>
                   </div>
                 </div>
               </div>
+
+              {renderTextPreprocessingOptions()}
             </div>
           )}
-
-          {/* 子块配置 - 仅在父子模式下显示 */}
-          {chunkingConfig.strategy === 'parent_child' && (
-            <div className="border-t pt-4">
-              <h5 className="text-sm font-medium text-gray-900 mb-3">子块用于检索</h5>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    分段标识符
-                    <HelpCircle className="inline w-3 h-3 ml-1 text-gray-400" />
-                  </label>
-                  <input
-                    type="text"
-                    value={chunkingConfig.childSeparator || '\n'}
-                    onChange={(e) => onChunkingConfigChange({ childSeparator: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                    placeholder="\n"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">分段最大长度</label>
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="number"
-                      value={chunkingConfig.childMaxLength || 512}
-                      onChange={(e) => onChunkingConfigChange({ childMaxLength: parseInt(e.target.value) })}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm"
-                      min="1"
-                      max="5000"
-                    />
-                    <span className="text-sm text-gray-500">characters</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* 通用配置 */}
-          <div className="border-t pt-4">
-            <h5 className="text-sm font-medium text-gray-900 mb-3">分段设置</h5>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  分段标识符
-                  <HelpCircle className="inline w-3 h-3 ml-1 text-gray-400" />
-                </label>
-                <input
-                  type="text"
-                  value={chunkingConfig.separator}
-                  onChange={(e) => onChunkingConfigChange({ separator: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                  placeholder="\n\n"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">分段最大长度</label>
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="number"
-                    value={chunkingConfig.maxLength}
-                    onChange={(e) => onChunkingConfigChange({ maxLength: parseInt(e.target.value) })}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm"
-                    min="1"
-                    max="10000"
-                  />
-                  <span className="text-sm text-gray-500">characters</span>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  分段重叠长度
-                  <HelpCircle className="inline w-3 h-3 ml-1 text-gray-400" />
-                </label>
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="number"
-                    value={chunkingConfig.overlapLength}
-                    onChange={(e) => onChunkingConfigChange({ overlapLength: parseInt(e.target.value) })}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm"
-                    min="0"
-                    max="1000"
-                  />
-                  <span className="text-sm text-gray-500">characters</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* 文本预处理规则 */}
-          <div className="border-t pt-4">
-            <h5 className="text-sm font-medium text-gray-900 mb-3">文本预处理规则</h5>
-            <div className="space-y-2">
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={chunkingConfig.removeExtraWhitespace}
-                  onChange={(e) => onChunkingConfigChange({ removeExtraWhitespace: e.target.checked })}
-                  className="mr-2"
-                />
-                <span className="text-sm text-gray-700">替换掉连续的空格、换行符和制表符</span>
-              </label>
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={chunkingConfig.removeUrls}
-                  onChange={(e) => onChunkingConfigChange({ removeUrls: e.target.checked })}
-                  className="mr-2"
-                />
-                <span className="text-sm text-gray-700">删除所有 URL</span>
-              </label>
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={chunkingConfig.removeEmails}
-                  onChange={(e) => onChunkingConfigChange({ removeEmails: e.target.checked })}
-                  className="mr-2"
-                />
-                <span className="text-sm text-gray-700">删除所有电子邮件地址</span>
-              </label>
-            </div>
-          </div>
         </div>
       </div>
 
-      {/* 索引方式配置 */}
+      {/* 其余配置保持不变... */}
       <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
         <div className="flex items-center space-x-2 mb-4">
           <Database className="w-5 h-5 text-gray-600" />
@@ -336,7 +365,6 @@ export const ConfigurationStep: React.FC<ConfigurationStepProps> = ({
         </p>
         
         <div className="space-y-4">
-          {/* 向量检索 */}
           <label className={cn(
             "flex items-start p-4 border rounded-lg cursor-pointer transition-colors",
             retrievalConfig.strategy === 'vector_search' 
@@ -437,7 +465,6 @@ export const ConfigurationStep: React.FC<ConfigurationStepProps> = ({
             </div>
           </label>
 
-          {/* 全文检索 */}
           <label className={cn(
             "flex items-start p-4 border rounded-lg cursor-pointer transition-colors",
             retrievalConfig.strategy === 'fulltext_search' 
@@ -460,7 +487,6 @@ export const ConfigurationStep: React.FC<ConfigurationStepProps> = ({
             </div>
           </label>
 
-          {/* 混合检索 */}
           <label className={cn(
             "flex items-start p-4 border rounded-lg cursor-pointer transition-colors",
             retrievalConfig.strategy === 'hybrid_search' 

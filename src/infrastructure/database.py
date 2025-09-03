@@ -18,16 +18,21 @@ DATABASE_URL = os.getenv(
 engine = create_async_engine(
     DATABASE_URL,
     echo=True,  # 开发环境下显示SQL语句
-    future=True
+    future=True,
+    pool_size=20,           # 连接池大小
+    max_overflow=30,        # 最大溢出连接数
+    pool_timeout=30,        # 获取连接超时时间
+    pool_recycle=3600,      # 连接回收时间
+    pool_pre_ping=True      # 连接前ping测试
 )
 
 # 创建异步会话工厂
 AsyncSessionLocal = async_sessionmaker(
     engine,
     class_=AsyncSession,
-    expire_on_commit=False,
-    autocommit=False,
-    autoflush=False
+    expire_on_commit=True,   # 修复：提交后过期对象
+    autocommit=False,       # 保持手动提交
+    autoflush=True          # 修复：启用自动刷新
 )
 
 # 声明基类
@@ -37,12 +42,16 @@ Base = declarative_base()
 async def get_database_session() -> AsyncGenerator[AsyncSession, None]:
     """
     FastAPI依赖项：获取数据库会话
+    正确的事务管理：手动提交/回滚
     """
     async with AsyncSessionLocal() as session:
         try:
+            # 将会话交给调用者管理事务
             yield session
-        except Exception:
+            # 注意：不在这里自动提交，由控制器手动提交
+        except Exception as e:
             await session.rollback()
+            print(f"数据库会话异常，已回滚: {str(e)}")
             raise
         finally:
             await session.close()
@@ -89,6 +98,19 @@ async def drop_tables():
 
 async def get_session():
     """
-    获取数据库会话（简单版本用于测试）
+    获取数据库会话（修复版本）
+    返回会话上下文管理器，而不是裸会话
     """
-    return AsyncSessionLocal()
+    @asynccontextmanager
+    async def session_context():
+        async with AsyncSessionLocal() as session:
+            try:
+                yield session
+            except Exception as e:
+                await session.rollback()
+                print(f"临时会话异常，已回滚: {str(e)}")
+                raise
+            finally:
+                await session.close()
+    
+    return session_context()

@@ -24,11 +24,10 @@ async def get_knowledge_service() -> KnowledgeApplicationService:
     global _knowledge_service_instance
     
     if _knowledge_service_instance is None:
-        # 创建仓储实例（使用临时会话）
-        temp_session = await get_session()
-        knowledge_base_repo = KnowledgeBaseDatabaseRepositoryImpl(temp_session)
-        document_repo = DocumentRepositoryImpl(temp_session)
-        document_chunk_repo = DocumentChunkRepositoryImpl(temp_session)
+        # 创建仓储实例
+        knowledge_base_repo = KnowledgeBaseDatabaseRepositoryImpl(None)  # 会话将在控制器中注入
+        document_repo = DocumentRepositoryImpl(None)
+        document_chunk_repo = DocumentChunkRepositoryImpl(None)
         
         # 创建领域服务实例
         file_upload_config = FileUploadConfig()

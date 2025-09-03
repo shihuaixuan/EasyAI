@@ -2,7 +2,7 @@
 知识库仓储PostgreSQL实现
 """
 
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, delete
@@ -97,22 +97,56 @@ class KnowledgeBaseDatabaseRepositoryImpl(KnowledgeBaseRepository):
                 raise ValueError("知识库ID不能为空")
             kb_id = int(knowledge_base.knowledge_base_id)
             
+            # 确保配置是JSON可序列化的
+            config_to_save = knowledge_base.config or {}
+            if not isinstance(config_to_save, dict):
+                config_to_save = {}
+            
+            print(f"开始更新知识库 {kb_id}, 配置: {config_to_save}")
+            
+            # 执行更新（添加超时处理）
             stmt = update(DatasetModel).where(
                 DatasetModel.id == kb_id
             ).values(
                 name=knowledge_base.name,
                 description=knowledge_base.description,
-                embedding_model_config=knowledge_base.config or {},
+                embedding_model_config=config_to_save,
                 updated_at=datetime.now()
             )
             
-            await self.session.execute(stmt)
+            print(f"正在执行SQL更新语句...")
+            
+            # 使用asyncio.wait_for添加超时控制
+            import asyncio
+            try:
+                result = await asyncio.wait_for(
+                    self.session.execute(stmt), 
+                    timeout=30.0  # 30秒超时
+                )
+                print(f"SQL执行完成，影响行数: {result.rowcount}")
+            except asyncio.TimeoutError:
+                print(f"错误：SQL执行超时，可能存在数据库锁等待")
+                await self.session.rollback()
+                raise ValueError(f"数据库更新超时，可能存在锁冲突或长时间事务")
+            
+            # 检查是否更新成功
+            if result.rowcount == 0:
+                raise ValueError(f"更新失败：找不到ID为{kb_id}的知识库")
+            
+            # 更新实体的时间戳
             knowledge_base.updated_at = datetime.now()
             
+            print(f"数据库更新成功，直接返回结果")
+            
+            # 直接返回更新后的实体，不进行数据库验证查询（避免锁等待）
             return knowledge_base
             
         except (ValueError, TypeError) as e:
+            print(f"类型错误: {str(e)}")
             raise ValueError(f"更新知识库失败: {str(e)}")
+        except Exception as e:
+            print(f"简化更新异常: {str(e)}")
+            raise ValueError(f"数据库操作失败: {str(e)}")
     
     async def delete_by_id(self, knowledge_base_id: str) -> bool:
         """根据ID删除知识库（软删除）"""
@@ -155,13 +189,30 @@ class KnowledgeBaseDatabaseRepositoryImpl(KnowledgeBaseRepository):
     
     def _convert_to_entity(self, db_model: DatasetModel) -> KnowledgeBase:
         """将数据库模型转换为领域实体"""
+        # 确保配置是字典格式
+        config: Dict[str, Any] = {}
+        if hasattr(db_model, 'embedding_model_config') and db_model.embedding_model_config is not None:
+            try:
+                if isinstance(db_model.embedding_model_config, dict):
+                    config = dict(db_model.embedding_model_config)
+                else:
+                    # 如果不是字典，尝试解析为JSON
+                    import json
+                    if isinstance(db_model.embedding_model_config, str):
+                        config = json.loads(db_model.embedding_model_config)
+                    else:
+                        config = {}
+            except Exception as e:
+                print(f"警告：解析配置失败 - {str(e)}, 使用空配置")
+                config = {}
+        
         return KnowledgeBase(
             knowledge_base_id=str(db_model.id),
-            name=str(db_model.name),  # type: ignore
-            description=str(db_model.description or ""),  # type: ignore
-            owner_id=str(db_model.user_id),  # type: ignore
-            config=dict(db_model.embedding_model_config or {}),  # type: ignore
-            is_active=not bool(db_model.is_deleted),  # type: ignore
-            created_at=db_model.created_at,  # type: ignore
-            updated_at=db_model.updated_at  # type: ignore
+            name=str(getattr(db_model, 'name', '')),
+            description=str(getattr(db_model, 'description', '')),
+            owner_id=str(getattr(db_model, 'user_id', '')),
+            config=config,
+            is_active=not bool(getattr(db_model, 'is_deleted', False)),
+            created_at=getattr(db_model, 'created_at', None),
+            updated_at=getattr(db_model, 'updated_at', None)
         )
