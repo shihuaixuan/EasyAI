@@ -73,6 +73,19 @@ class DocumentChunkSqlRepository(DocumentChunkRepository):
         rows = result.fetchall()
         return [self._from_dict(dict(row._mapping)) for row in rows]
     
+    async def find_chunks_without_vectors(self, knowledge_base_id: str) -> List[DocumentChunk]:
+        """查找没有向量的分块"""
+        sql = """
+        SELECT * FROM chunks 
+        WHERE dataset_id = :dataset_id 
+        AND is_active = true 
+        AND (vector IS NULL OR vector = '[]' OR vector = '')
+        ORDER BY created_at DESC
+        """
+        result = await self.session.execute(text(sql), {"dataset_id": int(knowledge_base_id)})
+        rows = result.fetchall()
+        return [self._from_dict(dict(row._mapping)) for row in rows]
+    
     async def update(self, chunk: DocumentChunk) -> DocumentChunk:
         """更新文档块"""
         sql = "UPDATE chunks SET content = :content, char_size = :char_size, meta = :meta WHERE id = :chunk_id"

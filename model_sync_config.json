@@ -1,0 +1,10 @@
+{
+  "system_user_id": 0,
+  "use_cron": true,
+  "cron_expression": "0 */6 * * *",
+  "interval_minutes": 360,
+  "run_immediately": true,
+  "models_dir": "src/infrastructure/models",
+  "log_level": "INFO",
+  "log_file": "logs/model_sync.log"
+}

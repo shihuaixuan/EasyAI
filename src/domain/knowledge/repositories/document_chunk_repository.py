@@ -75,3 +75,8 @@ class DocumentChunkRepository(ABC):
     async def find_chunks_with_vectors(self, knowledge_base_id: str) -> List[DocumentChunk]:
         """查找有向量的文档块"""
         pass
+    
+    @abstractmethod
+    async def find_chunks_without_vectors(self, knowledge_base_id: str) -> List[DocumentChunk]:
+        """查找没有向量的文档块"""
+        pass

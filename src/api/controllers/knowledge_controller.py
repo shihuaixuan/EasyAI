@@ -636,52 +636,199 @@ async def delete_knowledge_base(
 
 @router.get("/embedding-models")
 async def get_available_embedding_models(
+    session: AsyncSession = Depends(get_database_session),
     current_user_id: str = Depends(get_current_user_id)
 ):
     """获取用户可用的embedding模型"""
     try:
-        # 从模型服务获取用户的embedding模型
-        from ...domain.model.services.embedding.factory import list_providers
-        from ...application.services.model_application_service import ModelApplicationService
-        from ...infrastructure.repositories.model.sql_model_repository import SqlModelRepository
         from ...infrastructure.repositories.provider.sql_provider_repository import SqlProviderRepository
+        from ...infrastructure.models.provider_models import ModelModel, ProviderModel
+        from sqlalchemy import select, and_
         
-        # 获取所有可用的embedding提供商
-        available_providers = list_providers()
+        # 1. 查询用户有权访问的提供商列表
+        provider_repo = SqlProviderRepository(session)
+        # 注意：如果current_user_id是字符串但数据库需要整数，需要适当转换
+        # 这里先尝试转换，如果失败则使用默认值
+        try:
+            user_id = int(current_user_id)
+        except ValueError:
+            # 如果无法转换为整数，使用默认测试用户ID
+            user_id = 1
         
-        # 获取用户已配置的提供商和模型
-        # 这里暂时返回默认模型，后续可以扩展为从数据库查询
-        models = []
+        user_providers = await provider_repo.find_by_user_id(user_id)
         
-        if 'siliconflow' in available_providers:
-            models.append({
-                "provider": "siliconflow",
-                "model_name": "BAAI/bge-large-zh-v1.5",
-                "display_name": "BAAI/bge-large-zh-v1.5",
-                "description": "高质量中文embedding模型"
-            })
-            models.append({
-                "provider": "siliconflow", 
-                "model_name": "BAAI/bge-m3",
-                "display_name": "BAAI/bge-m3",
-                "description": "多语言embedding模型"
-            })
+        # 获取用户配置的提供商名称列表
+        user_provider_names = {provider.provider for provider in user_providers if not provider.is_delete}
         
-        if 'local' in available_providers:
-            models.append({
-                "provider": "local",
-                "model_name": "local-bge-m3",
-                "display_name": "本地BGE-M3模型",
-                "description": "本地部署的BGE-M3模型"
-            })
+        # 2. 从ModelModel表查询所有embedding类型的模型
+        stmt = select(ModelModel).where(
+            and_(
+                ModelModel.type == 'embedding',
+                ModelModel.is_delete == 0
+            )
+        )
+        result = await session.execute(stmt)
+        all_embedding_models = result.scalars().all()
+        
+        # 3. 过滤用户有权访问的模型
+        available_models = []
+        for model in all_embedding_models:
+            # 检查用户是否配置了该提供商
+            if model.provider_name in user_provider_names:
+                metadata = model.get_metadata_dict()
+                
+                model_info = {
+                    "provider": model.provider_name,
+                    "model_name": model.model_name,
+                    "display_name": model.model_name,
+                    "description": metadata.get('description', f'{model.provider_name}的{model.model_name}模型'),
+                    "capabilities": metadata.get('capabilities', []),
+                    "context_length": metadata.get('context_length', 0),
+                    "subtype": model.subtype
+                }
+                available_models.append(model_info)
+        
+        # 4. 按提供商和模型名称排序
+        available_models.sort(key=lambda x: (x['provider'], x['model_name']))
         
         return {
-            "models": models,
-            "total": len(models)
+            "models": available_models,
+            "total": len(available_models),
+            "user_providers": list(user_provider_names)
         }
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取embedding模型列表失败: {str(e)}")
+
+
+@router.post("/knowledge-bases/{knowledge_base_id}/reprocess-embeddings")
+async def reprocess_embeddings(
+    knowledge_base_id: str,
+    session: AsyncSession = Depends(get_database_session),
+    current_user_id: str = Depends(get_current_user_id)
+):
+    """重新处理知识库的embedding向量"""
+    try:
+        # 验证知识库是否存在
+        from ...infrastructure.repositories.knowledge.knowledge_base_database_repository_impl import KnowledgeBaseDatabaseRepositoryImpl
+        knowledge_base_repo = KnowledgeBaseDatabaseRepositoryImpl(session)
+        knowledge_base = await knowledge_base_repo.find_by_id(knowledge_base_id)
+        
+        if not knowledge_base:
+            raise HTTPException(status_code=404, detail="知识库不存在")
+        
+        # 启动异步embedding处理任务
+        from ...application.services.embedding_application_service import create_embedding_application_service
+        import asyncio
+        
+        # 创建异步任务（不等待完成）
+        async def process_task():
+            embedding_app_service = await create_embedding_application_service(session)
+            return await embedding_app_service.process_knowledge_base_embeddings(
+                knowledge_base_id, current_user_id
+            )
+        
+        task = asyncio.create_task(process_task())
+        
+        return {
+            "success": True,
+            "message": "已启动embedding重新处理任务，请稍后查看处理结果",
+            "knowledge_base_id": knowledge_base_id
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"启动embedding重新处理失败: {str(e)}")
+        await session.rollback()
+        raise HTTPException(status_code=500, detail=f"启动embedding重新处理失败: {str(e)}")
+
+
+@router.post("/knowledge-bases/{knowledge_base_id}/documents/{document_id}/reprocess-embeddings")
+async def reprocess_document_embeddings(
+    knowledge_base_id: str,
+    document_id: str,
+    session: AsyncSession = Depends(get_database_session),
+    current_user_id: str = Depends(get_current_user_id)
+):
+    """重新处理单个文档的embedding向量"""
+    try:
+        # 验证知识库和文档是否存在
+        from ...infrastructure.repositories.knowledge.knowledge_base_database_repository_impl import KnowledgeBaseDatabaseRepositoryImpl
+        from ...infrastructure.repositories.knowledge.document_sql_repository import DocumentSqlRepository
+        
+        knowledge_base_repo = KnowledgeBaseDatabaseRepositoryImpl(session)
+        document_repo = DocumentSqlRepository(session)
+        
+        knowledge_base = await knowledge_base_repo.find_by_id(knowledge_base_id)
+        if not knowledge_base:
+            raise HTTPException(status_code=404, detail="知识库不存在")
+        
+        document = await document_repo.find_by_id(document_id)
+        if not document or document.knowledge_base_id != knowledge_base_id:
+            raise HTTPException(status_code=404, detail="文档不存在或不属于该知识库")
+        
+        # 启动异步embedding处理任务
+        from ...application.services.embedding_application_service import create_embedding_application_service
+        import asyncio
+        
+        # 创建异步任务（不等待完成）
+        async def process_task():
+            embedding_app_service = await create_embedding_application_service(session)
+            return await embedding_app_service.process_document_embeddings(
+                knowledge_base_id, document_id, current_user_id
+            )
+        
+        task = asyncio.create_task(process_task())
+        
+        return {
+            "success": True,
+            "message": f"已启动文档 {document.filename} 的embedding重新处理任务",
+            "knowledge_base_id": knowledge_base_id,
+            "document_id": document_id
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"启动文档embedding重新处理失败: {str(e)}")
+        await session.rollback()
+        raise HTTPException(status_code=500, detail=f"启动文档embedding重新处理失败: {str(e)}")
+
+
+@router.get("/knowledge-bases/{knowledge_base_id}/embedding-status")
+async def get_embedding_status(
+    knowledge_base_id: str,
+    session: AsyncSession = Depends(get_database_session),
+    current_user_id: str = Depends(get_current_user_id)
+):
+    """获取知识库的embedding状态"""
+    try:
+        from ...infrastructure.repositories.knowledge.document_chunk_sql_repository import DocumentChunkSqlRepository
+        
+        chunk_repo = DocumentChunkSqlRepository(session)
+        
+        # 获取所有分块
+        all_chunks = await chunk_repo.find_by_knowledge_base_id(knowledge_base_id)
+        
+        # 获取没有向量的分块
+        chunks_without_vectors = await chunk_repo.find_chunks_without_vectors(knowledge_base_id)
+        
+        total_chunks = len(all_chunks)
+        chunks_with_vectors = total_chunks - len(chunks_without_vectors)
+        
+        return {
+            "knowledge_base_id": knowledge_base_id,
+            "total_chunks": total_chunks,
+            "chunks_with_vectors": chunks_with_vectors,
+            "chunks_without_vectors": len(chunks_without_vectors),
+            "embedding_progress": round((chunks_with_vectors / total_chunks * 100) if total_chunks > 0 else 0, 2)
+        }
+        
+    except Exception as e:
+        print(f"获取embedding状态失败: {str(e)}")
+        await session.rollback()
+        raise HTTPException(status_code=500, detail=f"获取embedding状态失败: {str(e)}")
 
 
 @router.post("/knowledge-bases/{knowledge_base_id}/process")

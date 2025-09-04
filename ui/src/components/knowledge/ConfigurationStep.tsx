@@ -2,7 +2,7 @@
  * 分块配置步骤组件
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FileText, Database, Settings, HelpCircle, ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import { ChunkingConfigStep, EmbeddingConfigStep, RetrievalConfigStep } from '../../hooks/useKnowledgeWorkflow';
@@ -19,6 +19,29 @@ interface ConfigurationStepProps {
 
 type ChunkingStrategy = 'parent_child' | 'general';
 
+// Embedding模型接口定义
+interface EmbeddingModel {
+  model_name: string;
+  provider: string;
+  description?: string;
+  capabilities?: string[];
+  context_length?: number;
+}
+
+interface EmbeddingModelsResponse {
+  models: EmbeddingModel[];
+  user_providers: string[];
+}
+
+// API调用函数
+const getAvailableEmbeddingModels = async (): Promise<EmbeddingModelsResponse> => {
+  const response = await fetch('http://localhost:8000/api/knowledge/embedding-models');
+  if (!response.ok) {
+    throw new Error('获取embedding模型列表失败');
+  }
+  return await response.json();
+};
+
 export const ConfigurationStep: React.FC<ConfigurationStepProps> = ({
   chunkingConfig,
   embeddingConfig,
@@ -28,6 +51,63 @@ export const ConfigurationStep: React.FC<ConfigurationStepProps> = ({
   onRetrievalConfigChange,
   mode = 'upload', // 默认为上传模式
 }) => {
+  const [embeddingModels, setEmbeddingModels] = useState<EmbeddingModel[]>([]);
+  const [loadingModels, setLoadingModels] = useState(false);
+  const [modelError, setModelError] = useState<string | null>(null);
+
+  // 获取可用的embedding模型
+  useEffect(() => {
+    const fetchEmbeddingModels = async () => {
+      if (mode === 'settings') {
+        // 在settings模式下，不获取所有可用模型，而是基于当前配置创建模型列表
+        console.log('settings模式，使用当前配置的模型，modelName:', embeddingConfig.modelName);
+        if (embeddingConfig.modelName) {
+          setEmbeddingModels([{
+            model_name: embeddingConfig.modelName,
+            provider: 'current', // 标识为当前配置的模型
+            description: '当前配置的embedding模型'
+          }]);
+        } else {
+          // 如果model_name为null，清空模型列表
+          setEmbeddingModels([]);
+        }
+        return;
+      }
+      
+      // 在upload模式下，只有strategy为high_quality时才获取模型列表
+      if (embeddingConfig.strategy === 'high_quality') {
+        console.log('开始获取所有可用模型...');
+        setLoadingModels(true);
+        setModelError(null);
+        try {
+          console.log('开始获取embedding模型列表...');
+          const response = await getAvailableEmbeddingModels();
+          console.log('API响应:', response);
+          setEmbeddingModels(response.models);
+          console.log('设置的模型列表:', response.models);
+          // 如果当前没有选择模型，默认选择第一个
+          if (!embeddingConfig.modelName && response.models.length > 0) {
+            onEmbeddingConfigChange({ modelName: response.models[0].model_name });
+          }
+        } catch (error) {
+          console.error('获取embedding模型失败:', error);
+          setModelError('获取模型列表失败，请稍后重试');
+          // 如果API调用失败，使用默认模型（仅在upload模式下）
+          if (mode === 'upload') {
+            setEmbeddingModels([{
+              model_name: 'netease-youdao/bce-embedding-base_v1',
+              provider: 'netease-youdao',
+              description: '默认embedding模型'
+            }]);
+          }
+        } finally {
+          setLoadingModels(false);
+        }
+      }
+    };
+
+    fetchEmbeddingModels();
+  }, [embeddingConfig.strategy, embeddingConfig.modelName, onEmbeddingConfigChange, mode]);
   const [expandedStrategy, setExpandedStrategy] = useState<ChunkingStrategy | null>(chunkingConfig.strategy);
 
   const handleStrategyClick = (strategy: ChunkingStrategy) => {
@@ -365,17 +445,52 @@ export const ConfigurationStep: React.FC<ConfigurationStepProps> = ({
         {embeddingConfig.strategy === 'high_quality' && (
           <div className="mt-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">Embedding 模型</label>
+            {modelError && (
+              <div className="mb-2 p-2 bg-red-50 border border-red-200 rounded-md">
+                <p className="text-sm text-red-600">{modelError}</p>
+              </div>
+            )}
             <select
-              value={embeddingConfig.modelName || 'netease-youdao/bce-embedding-base_v1'}
+              value={embeddingConfig.modelName || ''}
               onChange={(e) => mode !== 'settings' && onEmbeddingConfigChange({ modelName: e.target.value })}
-              disabled={mode === 'settings'}
+              disabled={mode === 'settings' || loadingModels}
               className={cn(
                 "w-full px-3 py-2 border border-gray-300 rounded-md text-sm",
-                mode === 'settings' ? "bg-gray-100 cursor-not-allowed" : ""
+                mode === 'settings' || loadingModels ? "bg-gray-100 cursor-not-allowed" : ""
               )}
             >
-              <option value="netease-youdao/bce-embedding-base_v1">netease-youdao/bce-embedding-base_v1</option>
+              {(mode !== 'settings' || embeddingModels.length > 0) && (
+                <option value="" disabled>
+                  {loadingModels ? "加载中..." : "选择embedding模型"}
+                </option>
+              )}
+              {embeddingModels.length > 0 && embeddingModels.map((model) => (
+                <option key={model.model_name} value={model.model_name}>
+                  {model.model_name}
+                </option>
+              ))}
             </select>
+            {embeddingConfig.modelName && embeddingModels.length > 0 && (
+              <div className="mt-2 text-xs text-gray-500">
+                {(() => {
+                  const selectedModel = embeddingModels.find(m => m.model_name === embeddingConfig.modelName);
+                  if (selectedModel) {
+                    return (
+                      <div>
+                        <div>提供商: {selectedModel.provider}</div>
+                        {selectedModel.context_length && (
+                          <div>上下文长度: {selectedModel.context_length.toLocaleString()}</div>
+                        )}
+                        {selectedModel.capabilities && selectedModel.capabilities.length > 0 && (
+                          <div>功能: {selectedModel.capabilities.join(', ')}</div>
+                        )}
+                      </div>
+                    );
+                  }
+                  return null;
+                })()} 
+              </div>
+            )}
           </div>
         )}
       </div>

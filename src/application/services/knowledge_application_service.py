@@ -444,6 +444,12 @@ class KnowledgeApplicationService:
                     total_chunks += chunks_count
                     processed_documents += 1
                     
+                    # 启动异步embedding处理任务（不阻塞主流程）
+                    if saved_document.document_id:
+                        asyncio.create_task(self._process_document_embeddings_async(
+                            knowledge_base_id, saved_document.document_id, knowledge_base.owner_id or "default_user"
+                        ))
+                    
                 except Exception as e:
                     print(f"处理文件 {file_info['filename']} 失败: {str(e)}")
                     failed_documents.append({
@@ -558,7 +564,9 @@ class KnowledgeApplicationService:
         self, 
         chunks: List[Dict[str, Any]], 
         document: Document,
-        embedding_config: Dict[str, Any]
+        embedding_config: Dict[str, Any],
+        knowledge_base: Any = None,
+        user_id: str = "default_user"
     ) -> List[DocumentChunk]:
         """处理并存储文本块（包括生成向量）"""
         
@@ -567,6 +575,7 @@ class KnowledgeApplicationService:
         # 初始化embedding服务（如果需要）
         embedding_service = None
         if embedding_config.get('strategy') == 'high_quality':
+            # 使用传入的配置创建embedding服务
             embedding_service = await self._create_embedding_service(embedding_config)
         
         for chunk_data in chunks:
@@ -618,28 +627,84 @@ class KnowledgeApplicationService:
         try:
             from ...domain.model.services.embedding.factory import create_embedding
             
+            # 获取配置信息
             model_name = embedding_config.get('model_name', 'BAAI/bge-large-zh-v1.5')
+            provider = embedding_config.get('provider', 'siliconflow')
+            api_key = embedding_config.get('api_key')
+            base_url = embedding_config.get('base_url')
             
-            # 根据模型名称确定提供商
-            if 'local' in model_name.lower():
-                provider = 'local'
-                config = {
-                    'model_path': '/opt/embedding/bge-m3',  # 默认本地模型路径
-                    'model_name': model_name
-                }
+            # 构建配置
+            config = {
+                'model_name': model_name,
+                'batch_size': embedding_config.get('batch_size', 32),
+                'max_tokens': embedding_config.get('max_tokens', 8192),
+                'timeout': embedding_config.get('timeout', 30),
+            }
+            
+            # 根据提供商添加特定配置
+            if provider == 'local':
+                config.update({
+                    'model_path': embedding_config.get('model_path', '/opt/embedding/bge-m3'),
+                    'normalize_embeddings': embedding_config.get('normalize_embeddings', True)
+                })
             else:
-                provider = 'siliconflow'
-                config = {
-                    'model_name': model_name,
-                    'api_key': os.getenv('SILICONFLOW_API_KEY'),  # 从环境变量获取
-                    'base_url': 'https://api.siliconflow.cn/v1'
-                }
+                # 远程API提供商
+                config.update({
+                    'api_key': api_key or os.getenv(f'{provider.upper()}_API_KEY'),
+                    'base_url': base_url or self._get_default_base_url(provider)
+                })
             
+            print(f"创建embedding服务: provider={provider}, model={model_name}")
             embedding_service = create_embedding(provider, config)
             return embedding_service
             
         except Exception as e:
             raise Exception(f"创建embedding服务失败: {str(e)}")
+    
+    def _get_default_base_url(self, provider: str) -> str:
+        """获取提供商的默认base_url"""
+        default_urls = {
+            'siliconflow': 'https://api.siliconflow.cn/v1',
+            'openai': 'https://api.openai.com/v1',
+            'anthropic': 'https://api.anthropic.com',
+        }
+        return default_urls.get(provider, 'https://api.siliconflow.cn/v1')
+    
+    async def _process_document_embeddings_async(
+        self, 
+        knowledge_base_id: str, 
+        document_id: str,
+        user_id: str
+    ) -> None:
+        """
+        异步处理文档的embedding（允许失败）
+        
+        Args:
+            knowledge_base_id: 知识库ID
+            document_id: 文档ID
+            user_id: 用户ID
+        """
+        try:
+            print(f"开始异步处理文档 {document_id} 的embedding...")
+            
+            # 使用新的DDD架构的embedding应用服务
+            from ...infrastructure.database import get_async_session
+            from .embedding_application_service import create_embedding_application_service
+            
+            async with get_async_session() as session:
+                embedding_app_service = await create_embedding_application_service(session)
+                result = await embedding_app_service.process_document_embeddings(
+                    knowledge_base_id, document_id, user_id
+                )
+                
+                if result.success:
+                    print(f"文档 {document_id} embedding处理成功: {result.message}")
+                else:
+                    print(f"文档 {document_id} embedding处理失败: {result.message}")
+                
+        except Exception as e:
+            print(f"异步embedding处理出错: {str(e)}")
+            # 不抛出异常，允许失败
     
     async def process_documents_chunking(
         self, 

@@ -1,0 +1,22 @@
+[Unit]
+Description=EasyAI Model Sync Daemon
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=twenty
+Group=twenty
+WorkingDirectory=/Users/twenty/LLM/EasyAI
+Environment=PATH=/Users/twenty/miniconda3/envs/llm/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/Users/twenty/miniconda3/envs/llm/bin/python model_sync_daemon.py daemon --config model_sync_config.json
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# 创建日志目录
+ExecStartPre=/bin/mkdir -p /Users/twenty/LLM/EasyAI/logs
+
+[Install]
+WantedBy=multi-user.target

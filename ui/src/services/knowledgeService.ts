@@ -142,15 +142,24 @@ class KnowledgeService {
       // 使用现有的getKnowledgeBase接口获取完整知识库信息
       const knowledgeBase = await this.getKnowledgeBase(knowledgeBaseId);
       
-      // 从知识库信息中提取embedding_model_config
-      if (knowledgeBase.embedding_model_config) {
-        return knowledgeBase.embedding_model_config;
+      // 从知识库信息中提取config
+      if (knowledgeBase.config && Object.keys(knowledgeBase.config).length > 0) {
+        return knowledgeBase.config as WorkflowConfig;
       } else {
-        // 如果没有配置，返回默认配置
+        // 如果没有配置，返回空配置（不设置默认model_name）
         return {
+          chunking: {
+            strategy: 'general',
+            separator: '\n\n',
+            max_length: 1024,
+            overlap_length: 50,
+            remove_extra_whitespace: false,
+            remove_urls: false,
+            remove_emails: false
+          },
           embedding: {
-            provider: 'openai',
-            model_name: 'text-embedding-ada-002'
+            strategy: 'high_quality',
+            model_name: null
           },
           retrieval: {
             strategy: 'vector_search',
