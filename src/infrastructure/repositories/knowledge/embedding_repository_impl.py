@@ -10,6 +10,7 @@ from ....domain.knowledge.vo.embedding_config import EmbeddingModelConfig
 from ....infrastructure.repositories.model.sql_model_repository import SqlModelRepository
 from ....infrastructure.repositories.provider.sql_provider_repository import SqlProviderRepository
 from ....infrastructure.models.knowledge_models import DatasetModel
+from ....infrastructure.security.encryption import encryption_service
 
 
 class EmbeddingConfigRepositoryImpl(EmbeddingConfigRepository):
@@ -60,13 +61,22 @@ class EmbeddingConfigRepositoryImpl(EmbeddingConfigRepository):
             if not provider or str(provider.user_id) != str(user_id):
                 return None
             
-            # 4. 构建配置对象
+            # 4. 解密API Key
+            decrypted_api_key = None
+            if provider.api_key and provider.api_key.encrypted_value:
+                try:
+                    decrypted_api_key = encryption_service.decrypt(provider.api_key.encrypted_value)
+                except Exception as e:
+                    print(f"解密API Key失败: {str(e)}")
+                    decrypted_api_key = None
+            
+            # 5. 构建配置对象
             config = EmbeddingModelConfig(
                 model_id=model.id,
                 model_name=model.model_name,
                 provider=provider.provider,
-                api_key=provider.api_key,
-                base_url=provider.base_url,
+                api_key=decrypted_api_key,
+                base_url=provider.base_url.url if provider.base_url else None,
                 strategy=embedding_model_config.get('strategy', 'high_quality'),
                 batch_size=embedding_model_config.get('batch_size', 32),
                 max_tokens=embedding_model_config.get('max_tokens', 8192),
