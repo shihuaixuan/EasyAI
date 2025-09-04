@@ -16,7 +16,7 @@ from ...domain.provider.entities.provider import Provider
 from ...domain.provider.repositories.model_repository import ModelRepository
 from ...domain.provider.repositories.provider_repository import ProviderRepository
 from ...domain.provider.exceptions import ProviderDomainError, RepositoryError
-from ...infrastructure.services import model_config_service
+from ...infrastructure.services.model_config_service import model_config_service
 
 
 class ModelApplicationService:
@@ -151,7 +151,7 @@ class ModelApplicationService:
                 data=None
             )
     
-    async def get_provider_models(self, user_id: int, provider: str) -> ProviderModelsResponse:
+    async def get_provider_models(self, user_id: str, provider: str) -> ProviderModelsResponse:
         """
         获取提供商的所有模型信息
         
@@ -173,10 +173,8 @@ class ModelApplicationService:
             # 2. 从配置文件获取所有可用模型
             available_models = model_config_service.get_provider_models(provider)
             
-            # 3. 获取已启用的模型
-            enabled_models = []
-            if provider_entity and provider_entity.id is not None:
-                enabled_models = await self._model_repository.find_by_provider_id(provider_entity.id)
+            # 3. 获取已启用的模型（从数据库中查询该提供商的所有模型）
+            enabled_models = await self._model_repository.find_by_provider_name(provider)
             
             enabled_model_names = {
                 model.model_name for model in enabled_models if not model.is_deleted()

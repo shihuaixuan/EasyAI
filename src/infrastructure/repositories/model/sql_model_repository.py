@@ -28,11 +28,11 @@ class SqlModelRepository(ModelRepository):
         try:
             # 创建数据模型
             model_data = ModelModel(
-                provider_id=model.provider_id,
                 model_name=model.model_name,
                 type=model.type,
                 subtype=model.subtype,
                 model_metadata=model.get_metadata_json(),
+                provider_name=model.provider_name,
                 is_delete=model.is_delete,
                 created_at=datetime.now(),
                 updated_at=datetime.now()
@@ -49,13 +49,13 @@ class SqlModelRepository(ModelRepository):
         except IntegrityError as e:
             await self._session.rollback()
             if 'unique_provider_model' in str(e):
-                raise ModelAlreadyExistsError(model.provider_id, model.model_name)
+                raise ModelAlreadyExistsError(model.provider_name, model.model_name)
             raise RepositoryError(f"数据库完整性错误: {str(e)}")
         except Exception as e:
             await self._session.rollback()
             raise RepositoryError(f"保存Model失败: {str(e)}")
     
-    async def find_by_id(self, model_id: int) -> Optional[Model]:
+    async def find_by_id(self, model_id: str) -> Optional[Model]:
         """根据ID查找Model"""
         try:
             stmt = select(ModelModel).where(ModelModel.id == model_id)
@@ -67,12 +67,12 @@ class SqlModelRepository(ModelRepository):
         except Exception as e:
             raise RepositoryError(f"查找Model失败: {str(e)}")
     
-    async def find_by_provider_and_name(self, provider_id: int, model_name: str) -> Optional[Model]:
-        """根据提供商ID和模型名称查找Model"""
+    async def find_by_provider_and_name(self, provider_name: str, model_name: str) -> Optional[Model]:
+        """根据提供商名称和模型名称查找Model"""
         try:
             stmt = select(ModelModel).where(
                 and_(
-                    ModelModel.provider_id == provider_id,
+                    ModelModel.provider_name == provider_name,
                     ModelModel.model_name == model_name
                 )
             )
@@ -84,10 +84,10 @@ class SqlModelRepository(ModelRepository):
         except Exception as e:
             raise RepositoryError(f"查找Model失败: {str(e)}")
     
-    async def find_by_provider_id(self, provider_id: int) -> List[Model]:
-        """根据提供商ID查找所有Model"""
+    async def find_by_provider_name(self, provider_name: str) -> List[Model]:
+        """根据提供商名称查找所有Model"""
         try:
-            stmt = select(ModelModel).where(ModelModel.provider_id == provider_id)
+            stmt = select(ModelModel).where(ModelModel.provider_name == provider_name)
             result = await self._session.execute(stmt)
             model_data_list = result.scalars().all()
             
@@ -155,12 +155,12 @@ class SqlModelRepository(ModelRepository):
             await self._session.rollback()
             raise RepositoryError(f"删除Model失败: {str(e)}")
     
-    async def exists(self, provider_id: int, model_name: str) -> bool:
+    async def exists(self, provider_name: str, model_name: str) -> bool:
         """检查Model是否存在"""
         try:
             stmt = select(ModelModel.id).where(
                 and_(
-                    ModelModel.provider_id == provider_id,
+                    ModelModel.provider_name == provider_name,
                     ModelModel.model_name == model_name
                 )
             )
@@ -173,7 +173,7 @@ class SqlModelRepository(ModelRepository):
     def _convert_to_entity(self, model_data: ModelModel) -> Model:
         """将数据模型转换为领域实体"""
         model = Model(
-            provider_id=model_data.provider_id,  # type: ignore
+            provider_name=model_data.provider_name,  # type: ignore
             model_name=model_data.model_name,  # type: ignore
             type=model_data.type,  # type: ignore
             subtype=model_data.subtype,  # type: ignore

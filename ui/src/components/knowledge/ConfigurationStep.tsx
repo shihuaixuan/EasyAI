@@ -35,7 +35,13 @@ interface EmbeddingModelsResponse {
 
 // API调用函数
 const getAvailableEmbeddingModels = async (): Promise<EmbeddingModelsResponse> => {
-  const response = await fetch('http://localhost:8000/api/knowledge/embedding-models');
+  const token = localStorage.getItem('auth_token');
+  const response = await fetch('http://localhost:8000/api/knowledge/embedding-models', {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+  });
   if (!response.ok) {
     throw new Error('获取embedding模型列表失败');
   }

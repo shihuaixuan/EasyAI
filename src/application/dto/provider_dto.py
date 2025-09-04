@@ -9,7 +9,7 @@ class SaveProviderRequest(BaseModel):
     """
     保存Provider请求DTO
     """
-    user_id: int = Field(..., gt=0, description="用户ID，必须为正整数")
+    user_id: str = Field(..., min_length=1, description="用户ID（UUID格式）")
     provider: str = Field(..., min_length=1, max_length=50, description="提供商名称")
     api_key: str = Field(..., min_length=1, description="加密后的API Key")
     base_url: Optional[str] = Field(None, max_length=500, description="基础URL")
@@ -54,7 +54,7 @@ class SaveProviderRequest(BaseModel):
     class Config:
         schema_extra = {
             "example": {
-                "user_id": 1,
+                "user_id": "8c9d8f16-278f-4b16-a5c0-4d1ccf348f93",
                 "provider": "openai",
                 "api_key": "encrypted_api_key_here",
                 "base_url": "https://api.openai.com/v1"
@@ -66,8 +66,8 @@ class ProviderResponse(BaseModel):
     """
     Provider响应DTO
     """
-    id: int = Field(..., description="Provider ID")
-    user_id: int = Field(..., description="用户ID")
+    id: str = Field(..., description="Provider ID（UUID格式）")
+    user_id: str = Field(..., description="用户ID（UUID格式）")
     provider: str = Field(..., description="提供商名称")
     api_key_masked: Optional[str] = Field(None, description="掉码后的API Key，用于前端显示")
     base_url: Optional[str] = Field(None, description="基础URL")
@@ -77,8 +77,8 @@ class ProviderResponse(BaseModel):
     class Config:
         schema_extra = {
             "example": {
-                "id": 1,
-                "user_id": 1,
+                "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+                "user_id": "8c9d8f16-278f-4b16-a5c0-4d1ccf348f93",
                 "provider": "openai",
                 "api_key_masked": "sk-***1234",
                 "base_url": "https://api.openai.com/v1",
@@ -102,8 +102,8 @@ class SaveProviderResponse(BaseModel):
                 "success": True,
                 "message": "Provider保存成功",
                 "data": {
-                    "id": 1,
-                    "user_id": 1,
+                    "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+                    "user_id": "8c9d8f16-278f-4b16-a5c0-4d1ccf348f93",
                     "provider": "openai",
                     "base_url": "https://api.openai.com/v1",
                     "created_at": "2023-12-01T10:00:00Z",

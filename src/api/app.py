@@ -9,6 +9,7 @@ from ..infrastructure.database import create_tables
 from .controllers.provider_controller import router as provider_router
 from .controllers.model_controller import router as model_router
 from .controllers.knowledge_controller import router as knowledge_router
+from .controllers.user_controller import router as user_router
 
 
 @asynccontextmanager
@@ -44,6 +45,7 @@ def create_app() -> FastAPI:
     app.include_router(provider_router)
     app.include_router(model_router)
     app.include_router(knowledge_router)
+    app.include_router(user_router)
     
     # 根路径
     @app.get("/")

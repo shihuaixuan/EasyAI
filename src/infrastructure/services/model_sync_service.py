@@ -18,13 +18,13 @@ from .model_config_parser import ModelConfigParser, ModelConfig
 class ModelSyncService:
     """模型同步服务"""
     
-    def __init__(self, models_dir: str, system_user_id: int = 0):
+    def __init__(self, models_dir: str, system_user_id: str = "system"):
         """
         初始化同步服务
         
         Args:
             models_dir: models目录路径
-            system_user_id: 系统用户ID，用于存储系统级别的模型配置
+            system_user_id: 系统用户ID（UUID格式），用于存储系统级别的模型配置
         """
         self.parser = ModelConfigParser(models_dir)
         self.system_user_id = system_user_id

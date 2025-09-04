@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '../utils/cn';
+import { useAuthStore } from '../stores/authStore';
 
 // API 服务
 const API_BASE_URL = 'http://localhost:8000/api/v1/models';
@@ -23,7 +24,7 @@ interface ProviderModelsResponse {
 }
 
 interface ModelToggleRequest {
-  user_id: number;
+  user_id: string;  // 改为字符串类型（UUID格式）
   provider: string;
   model_name: string;
   enabled: boolean;
@@ -40,8 +41,13 @@ interface ModelListProps {
 }
 
 // API 服务函数
-const getProviderModels = async (userId: number, provider: string): Promise<ProviderModelsResponse> => {
-  const response = await fetch(`${API_BASE_URL}/provider/${provider}/user/${userId}`);
+const getProviderModels = async (token: string, provider: string): Promise<ProviderModelsResponse> => {
+  const response = await fetch(`${API_BASE_URL}/provider/${provider}`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+  });
   if (!response.ok) {
     throw new Error('获取模型列表失败');
   }
@@ -68,17 +74,28 @@ const ModelList: React.FC<ModelListProps> = ({ provider, isExpanded, onToggle })
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { user } = useAuthStore();
+  
+  // 获取访问令牌
+  const getAccessToken = () => {
+    return localStorage.getItem('auth_token');
+  };
 
   // 加载模型列表
   const loadModels = async () => {
     if (!isExpanded) return;
     
+    const token = getAccessToken();
+    if (!token) {
+      setError('请先登录');
+      return;
+    }
+    
     setLoading(true);
     setError(null);
     
     try {
-      const userId = 1; // TODO: 从用户上下文获取
-      const response = await getProviderModels(userId, provider.id);
+      const response = await getProviderModels(token, provider.id);
       setModels(response.models);
     } catch (err) {
       setError(err instanceof Error ? err.message : '加载失败');
@@ -94,10 +111,14 @@ const ModelList: React.FC<ModelListProps> = ({ provider, isExpanded, onToggle })
       return;
     }
 
+    if (!user?.id) {
+      alert('请先登录');
+      return;
+    }
+
     try {
-      const userId = 1; // TODO: 从用户上下文获取
       const request: ModelToggleRequest = {
-        user_id: userId,
+        user_id: user.id, // 直接使用字符串ID（UUID格式）
         provider: provider.id,
         model_name: model.model,
         enabled

@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 
-export type PageType = 'model-providers' | 'knowledge' | 'workspace' | 'members' | 'billing' | 'data-sources' | 'api-extensions' | 'customization' | 'general' | 'language';
+export type PageType = 'dashboard' | 'model-providers' | 'knowledge' | 'model-knowledge-base' | 'workspace' | 'members' | 'billing' | 'data-sources' | 'api-extensions' | 'customization' | 'general' | 'language';
 
 // 全局状态管理
 class NavigationStore {
-  private currentPage: PageType = 'knowledge';
+  private currentPage: PageType = 'model-knowledge-base';
   private listeners: Array<(page: PageType) => void> = [];
 
   getCurrentPage(): PageType {

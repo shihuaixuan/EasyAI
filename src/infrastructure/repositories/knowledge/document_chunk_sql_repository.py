@@ -22,15 +22,21 @@ class DocumentChunkSqlRepository(DocumentChunkRepository):
     
     async def save(self, chunk: DocumentChunk) -> DocumentChunk:
         """保存文档块到 chunks 表"""
+        # 如果chunk没有ID，生成一个UUID
+        if not chunk.chunk_id:
+            from ....infrastructure.utils.uuid_generator import uuid_generator
+            chunk.chunk_id = uuid_generator.generate()
+        
         sql = """
-        INSERT INTO chunks (document_id, dataset_id, content, char_size, index_in_doc, meta, is_active, created_at)
-        VALUES (:document_id, :dataset_id, :content, :char_size, :index_in_doc, :meta, :is_active, :created_at)
+        INSERT INTO chunks (id, document_id, dataset_id, content, char_size, index_in_doc, meta, is_active, created_at)
+        VALUES (:id, :document_id, :dataset_id, :content, :char_size, :index_in_doc, :meta, :is_active, :created_at)
         RETURNING id
         """
         
         chunk_data = {
-            'document_id': int(chunk.document_id),
-            'dataset_id': int(chunk.knowledge_base_id),
+            'id': chunk.chunk_id,
+            'document_id': chunk.document_id,
+            'dataset_id': chunk.knowledge_base_id,
             'content': chunk.content,
             'char_size': len(chunk.content),
             'index_in_doc': chunk.chunk_index,
@@ -55,21 +61,21 @@ class DocumentChunkSqlRepository(DocumentChunkRepository):
     async def find_by_id(self, chunk_id: str) -> Optional[DocumentChunk]:
         """根据ID查找文档块"""
         sql = "SELECT * FROM chunks WHERE id = :chunk_id AND is_active = true"
-        result = await self.session.execute(text(sql), {"chunk_id": int(chunk_id)})
+        result = await self.session.execute(text(sql), {"chunk_id": chunk_id})
         row = result.fetchone()
         return self._from_dict(dict(row._mapping)) if row else None
     
     async def find_by_document_id(self, document_id: str) -> List[DocumentChunk]:
         """根据文档ID查找文档块列表"""
         sql = "SELECT * FROM chunks WHERE document_id = :document_id AND is_active = true ORDER BY index_in_doc ASC"
-        result = await self.session.execute(text(sql), {"document_id": int(document_id)})
+        result = await self.session.execute(text(sql), {"document_id": document_id})
         rows = result.fetchall()
         return [self._from_dict(dict(row._mapping)) for row in rows]
     
     async def find_by_knowledge_base_id(self, knowledge_base_id: str) -> List[DocumentChunk]:
         """根据知识库ID查找文档块列表"""
         sql = "SELECT * FROM chunks WHERE dataset_id = :dataset_id AND is_active = true ORDER BY created_at DESC"
-        result = await self.session.execute(text(sql), {"dataset_id": int(knowledge_base_id)})
+        result = await self.session.execute(text(sql), {"dataset_id": knowledge_base_id})
         rows = result.fetchall()
         return [self._from_dict(dict(row._mapping)) for row in rows]
     
@@ -82,7 +88,7 @@ class DocumentChunkSqlRepository(DocumentChunkRepository):
         AND (vector IS NULL OR vector = '[]' OR vector = '')
         ORDER BY created_at DESC
         """
-        result = await self.session.execute(text(sql), {"dataset_id": int(knowledge_base_id)})
+        result = await self.session.execute(text(sql), {"dataset_id": knowledge_base_id})
         rows = result.fetchall()
         return [self._from_dict(dict(row._mapping)) for row in rows]
     
@@ -101,38 +107,38 @@ class DocumentChunkSqlRepository(DocumentChunkRepository):
     async def delete_by_id(self, chunk_id: str) -> bool:
         """根据ID删除文档块"""
         sql = "UPDATE chunks SET is_active = false WHERE id = :chunk_id"
-        await self.session.execute(text(sql), {"chunk_id": int(chunk_id)})
+        await self.session.execute(text(sql), {"chunk_id": chunk_id})
         return True
     
     async def delete_by_document_id(self, document_id: str) -> int:
         """根据文档ID删除所有文档块（硬删除，包括embedding向量）"""
         # 先查询要删除的chunks数量
         count_sql = "SELECT COUNT(*) FROM chunks WHERE document_id = :document_id"
-        count_result = await self.session.execute(text(count_sql), {"document_id": int(document_id)})
+        count_result = await self.session.execute(text(count_sql), {"document_id": document_id})
         deleted_count = count_result.scalar() or 0
         
         # 硬删除chunks记录（包括vector字段中的embedding向量）
         delete_sql = "DELETE FROM chunks WHERE document_id = :document_id"
-        await self.session.execute(text(delete_sql), {"document_id": int(document_id)})
+        await self.session.execute(text(delete_sql), {"document_id": document_id})
         
         return deleted_count
     
     async def delete_by_knowledge_base_id(self, knowledge_base_id: str) -> int:
         """根据知识库ID删除所有文档块"""
         sql = "UPDATE chunks SET is_active = false WHERE dataset_id = :dataset_id"
-        await self.session.execute(text(sql), {"dataset_id": int(knowledge_base_id)})
+        await self.session.execute(text(sql), {"dataset_id": knowledge_base_id})
         return 0
     
     async def count_by_knowledge_base_id(self, knowledge_base_id: str) -> int:
         """统计知识库中的文档块数量"""
         sql = "SELECT COUNT(*) FROM chunks WHERE dataset_id = :dataset_id AND is_active = true"
-        result = await self.session.execute(text(sql), {"dataset_id": int(knowledge_base_id)})
+        result = await self.session.execute(text(sql), {"dataset_id": knowledge_base_id})
         return result.scalar() or 0
     
     async def count_by_document_id(self, document_id: str) -> int:
         """统计文档的分块数量"""
         sql = "SELECT COUNT(*) FROM chunks WHERE document_id = :document_id AND is_active = true"
-        result = await self.session.execute(text(sql), {"document_id": int(document_id)})
+        result = await self.session.execute(text(sql), {"document_id": document_id})
         return result.scalar() or 0
     
     # 实现抽象方法
@@ -140,7 +146,7 @@ class DocumentChunkSqlRepository(DocumentChunkRepository):
         """根据内容搜索文档块"""
         sql = "SELECT * FROM chunks WHERE dataset_id = :dataset_id AND content LIKE :query_text AND is_active = true LIMIT 10"
         result = await self.session.execute(text(sql), {
-            "dataset_id": int(query.knowledge_base_id),
+            "dataset_id": query.knowledge_base_id,
             "query_text": f"%{query.text}%"
         })
         rows = result.fetchall()
@@ -163,7 +169,7 @@ class DocumentChunkSqlRepository(DocumentChunkRepository):
         """查找有向量的文档块"""
         sql = "SELECT * FROM chunks WHERE dataset_id = :dataset_id AND is_active = true LIMIT :limit"
         result = await self.session.execute(text(sql), {
-            "dataset_id": int(knowledge_base_id),
+            "dataset_id": knowledge_base_id,
             "limit": limit
         })
         rows = result.fetchall()

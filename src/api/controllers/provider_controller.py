@@ -10,6 +10,7 @@ from ...application.services.provider_application_service import ProviderApplica
 from ...domain.provider.services.provider_domain_service import ProviderDomainService
 from ...infrastructure.repositories.provider.sql_provider_repository import SqlProviderRepository
 from ...infrastructure.database import get_database_session
+from ...api.dependencies import get_current_user_id
 
 
 router = APIRouter(prefix="/api/v1/providers", tags=["providers"])
@@ -64,28 +65,20 @@ async def save_provider(
         )
 
 
-@router.get("/user/{user_id}", response_model=List[ProviderResponse], summary="获取用户的Provider配置")
+@router.get("/", response_model=List[ProviderResponse], summary="获取当前用户的Provider配置")
 async def get_user_providers(
-    user_id: int,
+    current_user_id: str = Depends(get_current_user_id),
     service: ProviderApplicationService = Depends(get_provider_application_service)
 ) -> List[ProviderResponse]:
     """
-    获取指定用户的所有Provider配置
-    
-    参数:
-    - **user_id**: 用户ID
+    获取当前用户的所有Provider配置
     
     返回:
     - 用户的Provider配置列表
     """
     try:
-        if user_id <= 0:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="用户ID必须为正整数"
-            )
-        
-        providers = await service.get_user_providers(user_id)
+        # 直接使用字符串用户ID（UUID格式）
+        providers = await service.get_user_providers(current_user_id)
         return providers
         
     except HTTPException:

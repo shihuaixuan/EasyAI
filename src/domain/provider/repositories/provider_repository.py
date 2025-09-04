@@ -30,12 +30,12 @@ class ProviderRepository(ABC):
         pass
     
     @abstractmethod
-    async def find_by_id(self, provider_id: int) -> Optional[Provider]:
+    async def find_by_id(self, provider_id: str) -> Optional[Provider]:
         """
         根据ID查找Provider
         
         Args:
-            provider_id: Provider ID
+            provider_id: Provider ID（UUID格式）
             
         Returns:
             Provider实体或None
@@ -43,7 +43,7 @@ class ProviderRepository(ABC):
         pass
     
     @abstractmethod
-    async def find_by_user_and_provider(self, user_id: int, provider_name: str) -> Optional[Provider]:
+    async def find_by_user_and_provider(self, user_id: str, provider_name: str) -> Optional[Provider]:
         """
         根据用户ID和提供商名称查找Provider
         
@@ -57,7 +57,7 @@ class ProviderRepository(ABC):
         pass
     
     @abstractmethod
-    async def find_by_user_id(self, user_id: int) -> List[Provider]:
+    async def find_by_user_id(self, user_id: str) -> List[Provider]:
         """
         根据用户ID查找所有Provider
         
@@ -87,12 +87,12 @@ class ProviderRepository(ABC):
         pass
     
     @abstractmethod
-    async def delete(self, provider_id: int) -> bool:
+    async def delete(self, provider_id: str) -> bool:
         """
         删除Provider
         
         Args:
-            provider_id: Provider ID
+            provider_id: Provider ID（UUID格式）
             
         Returns:
             删除成功返回True，Provider不存在返回False
@@ -103,12 +103,12 @@ class ProviderRepository(ABC):
         pass
     
     @abstractmethod
-    async def exists(self, user_id: int, provider_name: str) -> bool:
+    async def exists(self, user_id: str, provider_name: str) -> bool:
         """
         检查指定用户和提供商的组合是否已存在
         
         Args:
-            user_id: 用户ID
+            user_id: 用户ID（UUID格式）
             provider_name: 提供商名称
             
         Returns:

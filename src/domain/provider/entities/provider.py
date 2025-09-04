@@ -7,6 +7,7 @@ from datetime import datetime
 
 from ..value_objects.api_key import ApiKey
 from ..value_objects.base_url import BaseUrl
+from ....infrastructure.utils.uuid_generator import uuid_generator
 
 
 @dataclass
@@ -14,19 +15,23 @@ class Provider:
     """
     模型提供商实体
     """
-    user_id: int
+    user_id: str  # 改为字符串类型以支持UUID
     provider: str  # 提供商名称，如 'openai', 'deepseek', 'siliconflow'
     api_key: ApiKey
     base_url: BaseUrl
-    id: Optional[int] = None
+    id: Optional[str] = None  # 改为字符串类型以支持UUID
     is_delete: int = 0  # 软删除标记，0-未删除，1-已删除
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     
     def __post_init__(self):
+        # 生成UUID（如果没有提供ID）
+        if not self.id:
+            self.id = uuid_generator.generate()
+            
         # 验证必填字段
-        if not self.user_id or self.user_id <= 0:
-            raise ValueError("用户ID必须为正整数")
+        if not self.user_id or not self.user_id.strip():
+            raise ValueError("用户ID不能为空")
         
         if not self.provider or not self.provider.strip():
             raise ValueError("提供商名称不能为空")
@@ -42,7 +47,7 @@ class Provider:
     @classmethod
     def create(
         cls, 
-        user_id: int, 
+        user_id: str, 
         provider: str, 
         encrypted_api_key: str, 
         base_url: Optional[str] = None

@@ -25,9 +25,12 @@ class KnowledgeBaseDatabaseRepositoryImpl(KnowledgeBaseRepository):
         """保存知识库"""
         try:
             # 创建数据库模型实例
+            if not knowledge_base.owner_id:
+                raise ValueError("知识库必须有所有者ID")
+                
             db_model = DatasetModel(
                 name=knowledge_base.name,
-                user_id=knowledge_base.owner_id or "default_user",
+                user_id=knowledge_base.owner_id,
                 description=knowledge_base.description,
                 embedding_model_id="default",  # 暂时使用默认值
                 embedding_model_config=knowledge_base.config or {},
@@ -57,9 +60,8 @@ class KnowledgeBaseDatabaseRepositoryImpl(KnowledgeBaseRepository):
     async def find_by_id(self, knowledge_base_id: str) -> Optional[KnowledgeBase]:
         """根据ID查找知识库"""
         try:
-            kb_id = int(knowledge_base_id)
             stmt = select(DatasetModel).where(
-                DatasetModel.id == kb_id,
+                DatasetModel.id == knowledge_base_id,
                 DatasetModel.is_deleted == False
             )
             result = await self.session.execute(stmt)
@@ -95,7 +97,7 @@ class KnowledgeBaseDatabaseRepositoryImpl(KnowledgeBaseRepository):
         try:
             if knowledge_base.knowledge_base_id is None:
                 raise ValueError("知识库ID不能为空")
-            kb_id = int(knowledge_base.knowledge_base_id)
+            kb_id = knowledge_base.knowledge_base_id
             
             # 确保配置是JSON可序列化的
             config_to_save = knowledge_base.config or {}
@@ -151,7 +153,7 @@ class KnowledgeBaseDatabaseRepositoryImpl(KnowledgeBaseRepository):
     async def delete_by_id(self, knowledge_base_id: str) -> bool:
         """根据ID删除知识库（软删除）"""
         try:
-            kb_id = int(knowledge_base_id)
+            kb_id = knowledge_base_id
             
             stmt = update(DatasetModel).where(
                 DatasetModel.id == kb_id

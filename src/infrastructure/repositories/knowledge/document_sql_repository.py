@@ -19,18 +19,24 @@ class DocumentSqlRepository(DocumentRepository):
     
     async def save(self, document: Document) -> Document:
         """保存文档"""
+        # 如果document没有ID，生成一个UUID
+        if not document.document_id:
+            from ....infrastructure.utils.uuid_generator import uuid_generator
+            document.document_id = uuid_generator.generate()
+        
         # 使用实际数据库表字段
         sql = """
-        INSERT INTO documents (dataset_id, name, original_document_id, hash, char_size, meta, process_status, is_active, created_at, updated_at)
-        VALUES (:dataset_id, :name, :original_document_id, :hash, :char_size, :meta, :process_status, :is_active, :created_at, :updated_at)
+        INSERT INTO documents (id, dataset_id, name, original_document_id, hash, char_size, meta, process_status, is_active, created_at, updated_at)
+        VALUES (:id, :dataset_id, :name, :original_document_id, :hash, :char_size, :meta, :process_status, :is_active, :created_at, :updated_at)
         RETURNING id
         """
         
         # 转换字段名映射
         params = {
-            'dataset_id': int(document.knowledge_base_id) if document.knowledge_base_id else None,
+            'id': document.document_id,
+            'dataset_id': document.knowledge_base_id if document.knowledge_base_id else None,
             'name': document.filename,
-            'original_document_id': document.document_id,
+            'original_document_id': document.document_id,  # 这里可能需要区分，暂时使用相同值
             'hash': document.content_hash,
             'char_size': document.file_size,
             'meta': json.dumps(document.metadata),
@@ -67,7 +73,7 @@ class DocumentSqlRepository(DocumentRepository):
         WHERE id = :id AND is_active = true
         """
         
-        result = await self.session.execute(text(sql), {"id": int(document_id)})
+        result = await self.session.execute(text(sql), {"id": document_id})
         row = result.fetchone()
         
         if row:
@@ -82,7 +88,7 @@ class DocumentSqlRepository(DocumentRepository):
         ORDER BY created_at DESC
         """
         
-        result = await self.session.execute(text(sql), {"dataset_id": int(knowledge_base_id)})
+        result = await self.session.execute(text(sql), {"dataset_id": knowledge_base_id})
         rows = result.fetchall()
         
         return [self._from_dict(dict(row._mapping)) for row in rows]
@@ -106,7 +112,7 @@ class DocumentSqlRepository(DocumentRepository):
         """
         
         params = {
-            'id': int(document.document_id),
+            'id': document.document_id,
             'name': document.filename,
             'hash': document.content_hash,
             'char_size': document.file_size,
@@ -126,7 +132,7 @@ class DocumentSqlRepository(DocumentRepository):
         """
         
         result = await self.session.execute(text(sql), {
-            "id": int(document_id)
+            "id": document_id
         })
         # 注意：事务提交由调用方处理，不在这里提交
         return result.rowcount > 0
@@ -140,7 +146,7 @@ class DocumentSqlRepository(DocumentRepository):
         """
         
         result = await self.session.execute(text(sql), {
-            "dataset_id": int(knowledge_base_id),
+            "dataset_id": knowledge_base_id,
             "updated_at": datetime.now()
         })
         # 注意：事务提交由调用方处理，不在这里提交
@@ -153,7 +159,7 @@ class DocumentSqlRepository(DocumentRepository):
         WHERE dataset_id = :dataset_id AND is_active = true
         """
         
-        result = await self.session.execute(text(sql), {"dataset_id": int(knowledge_base_id)})
+        result = await self.session.execute(text(sql), {"dataset_id": knowledge_base_id})
         return result.scalar() or 0
     
     async def find_unprocessed_documents(self, knowledge_base_id: str) -> List[Document]:
@@ -166,7 +172,7 @@ class DocumentSqlRepository(DocumentRepository):
         ORDER BY created_at ASC
         """
         
-        result = await self.session.execute(text(sql), {"dataset_id": int(knowledge_base_id)})
+        result = await self.session.execute(text(sql), {"dataset_id": knowledge_base_id})
         rows = result.fetchall()
         
         return [self._from_dict(dict(row._mapping)) for row in rows]
@@ -186,7 +192,7 @@ class DocumentSqlRepository(DocumentRepository):
         
         result = await self.session.execute(text(sql), {
             "hash": content_hash,
-            "dataset_id": int(knowledge_base_id)
+            "dataset_id": knowledge_base_id
         })
         row = result.fetchone()
         
@@ -205,7 +211,7 @@ class DocumentSqlRepository(DocumentRepository):
         """
         
         result = await self.session.execute(text(sql), {
-            "dataset_id": int(knowledge_base_id),
+            "dataset_id": knowledge_base_id,
             "pattern": f"%{pattern}%"
         })
         rows = result.fetchall()

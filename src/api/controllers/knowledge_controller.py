@@ -647,15 +647,8 @@ async def get_available_embedding_models(
         
         # 1. 查询用户有权访问的提供商列表
         provider_repo = SqlProviderRepository(session)
-        # 注意：如果current_user_id是字符串但数据库需要整数，需要适当转换
-        # 这里先尝试转换，如果失败则使用默认值
-        try:
-            user_id = int(current_user_id)
-        except ValueError:
-            # 如果无法转换为整数，使用默认测试用户ID
-            user_id = 1
-        
-        user_providers = await provider_repo.find_by_user_id(user_id)
+        # 直接使用字符串用户ID（UUID格式）
+        user_providers = await provider_repo.find_by_user_id(current_user_id)
         
         # 获取用户配置的提供商名称列表
         user_provider_names = {provider.provider for provider in user_providers if not provider.is_delete}
@@ -882,7 +875,7 @@ async def start_knowledge_processing(
         )
         
         # 开始处理流程
-        result: Dict[str, Any] = await application_service.start_knowledge_processing(knowledge_base_id)
+        result: Dict[str, Any] = await application_service.start_knowledge_processing(knowledge_base_id, current_user_id)
         
         # 提交数据库事务
         await session.commit()

@@ -9,7 +9,7 @@ class ModelCreateRequest(BaseModel):
     """
     创建模型请求DTO
     """
-    user_id: int = Field(..., gt=0, description="用户ID，必须为正整数")
+    user_id: str = Field(..., min_length=1, description="用户ID（UUID格式）")
     provider: str = Field(..., min_length=1, max_length=50, description="提供商名称")
     model_name: str = Field(..., min_length=1, max_length=100, description="模型名称")
     model_type: str = Field(..., min_length=1, max_length=50, description="模型类型")
@@ -47,7 +47,7 @@ class ModelToggleRequest(BaseModel):
     """
     模型开关请求DTO
     """
-    user_id: int = Field(..., gt=0, description="用户ID，必须为正整数")
+    user_id: str = Field(..., min_length=1, description="用户ID（UUID格式）")
     provider: str = Field(..., min_length=1, max_length=50, description="提供商名称")
     model_name: str = Field(..., min_length=1, max_length=100, description="模型名称")
     enabled: bool = Field(..., description="是否启用模型")
@@ -65,8 +65,8 @@ class ModelResponse(BaseModel):
     """
     模型响应DTO
     """
-    id: int = Field(..., description="模型ID")
-    provider_id: int = Field(..., description="提供商ID")
+    id: str = Field(..., description="模型ID（UUID格式）")
+    provider_name: str = Field(..., description="提供商名称")
     model_name: str = Field(..., description="模型名称")
     type: str = Field(..., description="模型类型")
     subtype: Optional[str] = Field(None, description="模型子类型")
@@ -113,8 +113,8 @@ class ModelOperationResponse(BaseModel):
                 "success": True,
                 "message": "模型操作成功",
                 "data": {
-                    "id": 1,
-                    "provider_id": 1,
+                    "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+                    "provider_name": "deepseek",
                     "model_name": "deepseek-chat",
                     "type": "llm",
                     "subtype": "chat",

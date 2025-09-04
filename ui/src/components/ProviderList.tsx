@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import ProviderCard from './ProviderCard';
 import { getUserProviders, ProviderResponse } from '../services/providerService';
+import { useAuthStore } from '../stores/authStore';
 
 // 基础提供商配置模板
 const baseProviders = [
@@ -55,13 +56,24 @@ export default function ProviderList() {
   const [savedProviders, setSavedProviders] = useState<ProviderResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { user } = useAuthStore();
+  
+  // 获取访问令牌
+  const getAccessToken = () => {
+    return localStorage.getItem('auth_token');
+  };
   
   // 获取已保存的提供商配置
   const fetchSavedProviders = async () => {
     try {
       console.log('开始获取已保存的提供商配置...');
-      const userId = 1; // TODO: 从用户上下文获取
-      const saved = await getUserProviders(userId);
+      const token = getAccessToken();
+      if (!token) {
+        setError('请先登录');
+        return;
+      }
+      
+      const saved = await getUserProviders(token);
       console.log('获取到的提供商配置:', saved);
       setSavedProviders(saved);
     } catch (err) {

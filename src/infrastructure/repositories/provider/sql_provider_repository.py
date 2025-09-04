@@ -59,7 +59,7 @@ class SqlProviderRepository(ProviderRepository):
             await self._session.rollback()
             raise RepositoryError(f"保存Provider失败: {str(e)}")
     
-    async def find_by_id(self, provider_id: int) -> Optional[Provider]:
+    async def find_by_id(self, provider_id: str) -> Optional[Provider]:
         """根据ID查找Provider（只返回未删除的记录）"""
         try:
             stmt = select(ProviderModel).where(
@@ -76,7 +76,7 @@ class SqlProviderRepository(ProviderRepository):
         except Exception as e:
             raise RepositoryError(f"查找Provider失败: {str(e)}")
     
-    async def find_by_user_and_provider(self, user_id: int, provider_name: str) -> Optional[Provider]:
+    async def find_by_user_and_provider(self, user_id: str, provider_name: str) -> Optional[Provider]:
         """根据用户ID和提供商名称查找Provider（只返回未删除的记录）"""
         try:
             stmt = select(ProviderModel).where(
@@ -94,7 +94,7 @@ class SqlProviderRepository(ProviderRepository):
         except Exception as e:
             raise RepositoryError(f"查找Provider失败: {str(e)}")
     
-    async def find_by_user_id(self, user_id: int) -> List[Provider]:
+    async def find_by_user_id(self, user_id: str) -> List[Provider]:
         """根据用户ID查找所有Provider（只返回未删除的记录）"""
         try:
             stmt = select(ProviderModel).where(
@@ -138,7 +138,7 @@ class SqlProviderRepository(ProviderRepository):
             await self._session.rollback()
             raise RepositoryError(f"更新Provider失败: {str(e)}")
     
-    async def delete(self, provider_id: int) -> bool:
+    async def delete(self, provider_id: str) -> bool:
         """软删除Provider（设置is_delete=1）"""
         try:
             stmt = select(ProviderModel).where(
@@ -162,7 +162,7 @@ class SqlProviderRepository(ProviderRepository):
             await self._session.rollback()
             raise RepositoryError(f"删除Provider失败: {str(e)}")
     
-    async def exists(self, user_id: int, provider_name: str) -> bool:
+    async def exists(self, user_id: str, provider_name: str) -> bool:
         """检查Provider是否存在（只检查未删除的记录）"""
         try:
             stmt = select(ProviderModel.id).where(

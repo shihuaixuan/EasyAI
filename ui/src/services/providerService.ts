@@ -5,15 +5,15 @@
 const API_BASE_URL = 'http://localhost:8000/api/v1/providers';
 
 export interface SaveProviderRequest {
-  user_id: number;
+  user_id: string;  // 改为字符串类型（UUID格式）
   provider: string;
   api_key: string;
   base_url?: string;
 }
 
 export interface ProviderResponse {
-  id: number;
-  user_id: number;
+  id: string;  // 改为字符串类型（UUID格式）
+  user_id: string;  // 改为字符串类型（UUID格式）
   provider: string;
   api_key_masked?: string;  // 添加掉码API Key字段
   base_url?: string;
@@ -53,11 +53,16 @@ export const saveProvider = async (request: SaveProviderRequest): Promise<SavePr
 };
 
 /**
- * 获取用户的提供商配置
+ * 获取当前用户的提供商配置
  */
-export const getUserProviders = async (userId: number): Promise<ProviderResponse[]> => {
+export const getUserProviders = async (token: string): Promise<ProviderResponse[]> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/user/${userId}`);
+    const response = await fetch(`${API_BASE_URL}/`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
 
     if (!response.ok) {
       const errorData = await response.json();
@@ -74,9 +79,9 @@ export const getUserProviders = async (userId: number): Promise<ProviderResponse
 /**
  * 获取单个提供商配置
  */
-export const getProviderConfig = async (userId: number, provider: string): Promise<ProviderResponse | null> => {
+export const getProviderConfig = async (token: string, provider: string): Promise<ProviderResponse | null> => {
   try {
-    const providers = await getUserProviders(userId);
+    const providers = await getUserProviders(token);
     return providers.find(p => p.provider === provider) || null;
   } catch (error) {
     console.error('获取提供商配置失败:', error);

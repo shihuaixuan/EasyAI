@@ -76,9 +76,11 @@ class KnowledgeService {
    */
   async createKnowledgeBase(request: CreateKnowledgeBaseRequest): Promise<KnowledgeBase> {
     try {
+      const token = localStorage.getItem('auth_token');
       const response = await fetch(`${API_BASE}/knowledge-bases`, {
         method: 'POST',
         headers: {
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(request),
@@ -101,7 +103,13 @@ class KnowledgeService {
    */
   async getKnowledgeBases(): Promise<{ knowledge_bases: KnowledgeBase[]; total: number }> {
     try {
-      const response = await fetch(`${API_BASE}/knowledge-bases`);
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch(`${API_BASE}/knowledge-bases`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -120,7 +128,13 @@ class KnowledgeService {
    */
   async getKnowledgeBase(knowledgeBaseId: string): Promise<KnowledgeBase> {
     try {
-      const response = await fetch(`${API_BASE}/knowledge-bases/${knowledgeBaseId}`);
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch(`${API_BASE}/knowledge-bases/${knowledgeBaseId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -180,9 +194,11 @@ class KnowledgeService {
    */
   async updateWorkflowConfig(knowledgeBaseId: string, config: WorkflowConfig): Promise<any> {
     try {
+      const token = localStorage.getItem('auth_token');
       const response = await fetch(`${API_BASE}/knowledge-bases/${knowledgeBaseId}/config`, {
         method: 'PUT',
         headers: {
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(config),
@@ -205,11 +221,15 @@ class KnowledgeService {
    */
   async uploadFile(knowledgeBaseId: string, file: File): Promise<FileUploadResponse> {
     try {
+      const token = localStorage.getItem('auth_token');
       const formData = new FormData();
       formData.append('file', file);
 
       const response = await fetch(`${API_BASE}/knowledge-bases/${knowledgeBaseId}/files`, {
         method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
         body: formData,
       });
 
@@ -230,6 +250,7 @@ class KnowledgeService {
    */
   async uploadFiles(knowledgeBaseId: string, files: File[]): Promise<FileUploadBatchResponse> {
     try {
+      const token = localStorage.getItem('auth_token');
       const formData = new FormData();
       files.forEach(file => {
         formData.append('files', file);
@@ -237,6 +258,9 @@ class KnowledgeService {
 
       const response = await fetch(`${API_BASE}/knowledge-bases/${knowledgeBaseId}/files/batch`, {
         method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
         body: formData,
       });
 
@@ -257,7 +281,13 @@ class KnowledgeService {
    */
   async getFiles(knowledgeBaseId: string): Promise<any> {
     try {
-      const response = await fetch(`${API_BASE}/knowledge-bases/${knowledgeBaseId}/files`);
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch(`${API_BASE}/knowledge-bases/${knowledgeBaseId}/files`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -308,8 +338,13 @@ class KnowledgeService {
    */
   async deleteFile(knowledgeBaseId: string, fileId: string): Promise<void> {
     try {
+      const token = localStorage.getItem('auth_token');
       const response = await fetch(`${API_BASE}/knowledge-bases/${knowledgeBaseId}/files/${fileId}`, {
         method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
       });
 
       if (!response.ok) {
@@ -327,8 +362,13 @@ class KnowledgeService {
    */
   async deleteKnowledgeBase(knowledgeBaseId: string): Promise<void> {
     try {
+      const token = localStorage.getItem('auth_token');
       const response = await fetch(`${API_BASE}/knowledge-bases/${knowledgeBaseId}`, {
         method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
       });
 
       if (!response.ok) {
@@ -346,9 +386,11 @@ class KnowledgeService {
    */
   async startKnowledgeProcessing(knowledgeBaseId: string): Promise<any> {
     try {
+      const token = localStorage.getItem('auth_token');
       const response = await fetch(`${API_BASE}/knowledge-bases/${knowledgeBaseId}/process`, {
         method: 'POST',
         headers: {
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
       });

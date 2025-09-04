@@ -80,6 +80,7 @@ async def create_tables():
     # 导入所有模型以确保它们被注册
     from .models.provider_models import ProviderModel, ModelModel
     from .models.knowledge_models import DatasetModel
+    from .models.user_models import UserModel
     
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -91,6 +92,7 @@ async def drop_tables():
     """
     from .models.provider_models import ProviderModel, ModelModel
     from .models.knowledge_models import DatasetModel
+    from .models.user_models import UserModel
     
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)

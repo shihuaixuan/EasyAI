@@ -30,12 +30,12 @@ class ModelRepository(ABC):
         pass
     
     @abstractmethod
-    async def find_by_id(self, model_id: int) -> Optional[Model]:
+    async def find_by_id(self, model_id: str) -> Optional[Model]:
         """
         根据ID查找Model
         
         Args:
-            model_id: Model ID
+            model_id: Model ID（UUID格式）
             
         Returns:
             Model实体或None
@@ -43,12 +43,12 @@ class ModelRepository(ABC):
         pass
     
     @abstractmethod
-    async def find_by_provider_and_name(self, provider_id: int, model_name: str) -> Optional[Model]:
+    async def find_by_provider_and_name(self, provider_name: str, model_name: str) -> Optional[Model]:
         """
-        根据提供商ID和模型名称查找Model
+        根据提供商名称和模型名称查找Model
         
         Args:
-            provider_id: 提供商ID
+            provider_name: 提供商名称
             model_name: 模型名称
             
         Returns:
@@ -57,12 +57,12 @@ class ModelRepository(ABC):
         pass
     
     @abstractmethod
-    async def find_by_provider_id(self, provider_id: int) -> List[Model]:
+    async def find_by_provider_name(self, provider_name: str) -> List[Model]:
         """
-        根据提供商ID查找所有Model
+        根据提供商名称查找所有Model
         
         Args:
-            provider_id: 提供商ID
+            provider_name: 提供商名称
             
         Returns:
             Model实体列表
@@ -100,12 +100,12 @@ class ModelRepository(ABC):
         pass
     
     @abstractmethod
-    async def delete(self, model_id: int) -> bool:
+    async def delete(self, model_id: str) -> bool:
         """
         删除Model
         
         Args:
-            model_id: Model ID
+            model_id: Model ID（UUID格式）
             
         Returns:
             删除成功返回True，Model不存在返回False
@@ -116,12 +116,12 @@ class ModelRepository(ABC):
         pass
     
     @abstractmethod
-    async def exists(self, provider_id: int, model_name: str) -> bool:
+    async def exists(self, provider_name: str, model_name: str) -> bool:
         """
         检查指定提供商和模型名称的组合是否已存在
         
         Args:
-            provider_id: 提供商ID
+            provider_name: 提供商名称
             model_name: 模型名称
             
         Returns:

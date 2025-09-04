@@ -18,13 +18,13 @@ from .model_sync_service import ModelSyncService
 class ModelSyncScheduler:
     """模型同步调度器"""
     
-    def __init__(self, models_dir: str, system_user_id: int = 0):
+    def __init__(self, models_dir: str, system_user_id: str = "system"):
         """
         初始化调度器
         
         Args:
             models_dir: models目录路径
-            system_user_id: 系统用户ID
+            system_user_id: 系统用户ID（UUID格式）
         """
         self.models_dir = models_dir
         self.system_user_id = system_user_id
@@ -222,7 +222,7 @@ class ModelSyncDaemon:
             # 创建调度器
             self.scheduler = ModelSyncScheduler(
                 self.models_dir,
-                self.config.get('system_user_id', 0)
+                self.config.get('system_user_id', "system")
             )
             
             # 根据配置启动调度器

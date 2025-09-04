@@ -370,7 +370,8 @@ class KnowledgeApplicationService:
     
     async def start_knowledge_processing(
         self, 
-        knowledge_base_id: str
+        knowledge_base_id: str,
+        user_id: str = None
     ) -> Dict[str, Any]:
         """开始知识库处理流程（从文件系统读取文件）"""
         try:
@@ -446,8 +447,13 @@ class KnowledgeApplicationService:
                     
                     # 启动异步embedding处理任务（不阻塞主流程）
                     if saved_document.document_id:
+                        # 使用传入的用户ID，如果没有则使用知识库的所有者ID
+                        effective_user_id = user_id or knowledge_base.owner_id
+                        if not effective_user_id:
+                            raise ValueError("无法确定用户ID，请确保已登录")
+                        
                         asyncio.create_task(self._process_document_embeddings_async(
-                            knowledge_base_id, saved_document.document_id, knowledge_base.owner_id or "default_user"
+                            knowledge_base_id, saved_document.document_id, effective_user_id
                         ))
                     
                 except Exception as e:
@@ -484,7 +490,8 @@ class KnowledgeApplicationService:
     async def _process_single_document(
         self, 
         document: Document, 
-        config: Dict[str, Any]
+        config: Dict[str, Any],
+        user_id: str = None
     ) -> int:
         """处理单个文档（分块 + embedding + 存储）"""
         try:
@@ -507,7 +514,7 @@ class KnowledgeApplicationService:
             # 4. 生成向量并存储分块
             embedding_config = config.get('embedding', {})
             saved_chunks = await self._process_and_store_chunks(
-                chunks, document, embedding_config
+                chunks, document, embedding_config, user_id=user_id
             )
             
             return len(saved_chunks)
@@ -566,7 +573,7 @@ class KnowledgeApplicationService:
         document: Document,
         embedding_config: Dict[str, Any],
         knowledge_base: Any = None,
-        user_id: str = "default_user"
+        user_id: str = None
     ) -> List[DocumentChunk]:
         """处理并存储文本块（包括生成向量）"""
         

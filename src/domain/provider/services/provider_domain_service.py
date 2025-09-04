@@ -19,7 +19,7 @@ class ProviderDomainService:
     
     async def save_provider(
         self,
-        user_id: int,
+        user_id: str,
         provider_name: str,
         plain_api_key: str,
         base_url: Optional[str] = None
@@ -64,7 +64,7 @@ class ProviderDomainService:
             )
             return await self._provider_repository.save(new_provider)
     
-    async def validate_provider_uniqueness(self, user_id: int, provider_name: str) -> None:
+    async def validate_provider_uniqueness(self, user_id: str, provider_name: str) -> None:
         """
         验证Provider唯一性
         
@@ -96,7 +96,7 @@ class ProviderDomainService:
             raise ProviderNotFoundError(f"ID: {provider_id}")
         return provider
     
-    async def get_user_providers(self, user_id: int) -> list[Provider]:
+    async def get_user_providers(self, user_id: str) -> list[Provider]:
         """
         获取用户的所有提供商
         

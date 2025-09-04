@@ -1,33 +1,29 @@
 import { useEffect } from 'react';
+import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
-import ProviderList from './ProviderList';
-import Knowledge from '../pages/Knowledge';
-import { useNavigation } from '@/hooks/useNavigation';
+import AuthGuard from './AuthGuard';
+import { useAuthStore } from '@/stores/authStore';
 
 export default function Layout() {
-  const { currentPage } = useNavigation();
+  const { checkAuth } = useAuthStore();
 
-  const renderCurrentPage = () => {
-    switch (currentPage) {
-      case 'knowledge':
-        return <Knowledge />;
-      case 'model-providers':
-        return <ProviderList />;
-      default:
-        return <ProviderList />;
-    }
-  };
+  // 应用启动时检查认证状态
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
 
   return (
-    <div className="h-screen flex bg-gray-50">
-      <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <Header />
-        <main className="flex-1 overflow-y-auto">
-          {renderCurrentPage()}
-        </main>
+    <AuthGuard>
+      <div className="h-screen flex bg-gray-50">
+        <Sidebar />
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <Header />
+          <main className="flex-1 overflow-y-auto">
+            <Outlet />
+          </main>
+        </div>
       </div>
-    </div>
+    </AuthGuard>
   );
 }

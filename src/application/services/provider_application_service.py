@@ -32,7 +32,7 @@ class ProviderApplicationService:
         try:
             # 调用领域服务保存Provider（传递明文API Key）
             provider = await self._provider_domain_service.save_provider(
-                user_id=request.user_id,
+                user_id=request.user_id,  # 直接使用字符串用户ID
                 provider_name=request.provider,
                 plain_api_key=request.api_key,  # 传递明文API Key
                 base_url=request.base_url
@@ -69,12 +69,12 @@ class ProviderApplicationService:
                 data=None
             )
     
-    async def get_user_providers(self, user_id: int) -> List[ProviderResponse]:
+    async def get_user_providers(self, user_id: str) -> List[ProviderResponse]:
         """
         获取用户的所有Provider
         
         Args:
-            user_id: 用户ID
+            user_id: 用户ID（UUID字符串格式）
             
         Returns:
             Provider响应列表

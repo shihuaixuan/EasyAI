@@ -31,7 +31,7 @@ class EmbeddingConfigRepositoryImpl(EmbeddingConfigRepository):
         try:
             # 1. 从数据库获取知识库的embedding_model_id
             stmt = select(DatasetModel.embedding_model_id, DatasetModel.embedding_model_config).where(
-                DatasetModel.id == int(knowledge_base_id),
+                DatasetModel.id == knowledge_base_id,
                 DatasetModel.is_deleted == False
             )
             result = await self.session.execute(stmt)

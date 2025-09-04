@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { X, ExternalLink } from 'lucide-react';
 import { cn } from '../utils/cn';
 import { saveProvider, SaveProviderRequest, getProviderConfig, ProviderResponse } from '../services/providerService';
+import { useAuthStore } from '../stores/authStore';
 
 interface ProviderModalProps {
   isOpen: boolean;
@@ -22,6 +23,12 @@ export default function ProviderModal({ isOpen, onClose, onSave, provider }: Pro
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isExistingConfig, setIsExistingConfig] = useState(false); // 标记是否为已存在配置
+  const { user } = useAuthStore();
+  
+  // 获取访问令牌
+  const getAccessToken = () => {
+    return localStorage.getItem('auth_token');
+  };
 
   // 当模态框打开时，初始化配置和加载已保存的数据
   useEffect(() => {
@@ -31,8 +38,13 @@ export default function ProviderModal({ isOpen, onClose, onSave, provider }: Pro
         
         // 加载已保存的配置
         try {
-          const userId = 1; // TODO: 从用户上下文获取
-          const existingConfig: ProviderResponse | null = await getProviderConfig(userId, provider.id);
+          const token = getAccessToken();
+          if (!token) {
+            console.warn('未找到访问令牌，跳过加载已保存配置');
+            return;
+          }
+          
+          const existingConfig: ProviderResponse | null = await getProviderConfig(token, provider.id);
           
           if (existingConfig) {
             setFormData({
@@ -74,8 +86,12 @@ export default function ProviderModal({ isOpen, onClose, onSave, provider }: Pro
       const config = getProviderConfigLocal();
       
       // 构建请求数据
+      if (!user?.id) {
+        throw new Error('请先登录');
+      }
+      
       const request: SaveProviderRequest = {
-        user_id: 1, // TODO: 从用户上下文获取实际用户ID
+        user_id: user.id, // 直接使用字符串ID（UUID格式）
         provider: provider.id,
         api_key: formData.apiKey,
         base_url: formData.apiBase || config.apiBaseDefault
