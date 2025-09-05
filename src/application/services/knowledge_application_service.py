@@ -115,14 +115,17 @@ class KnowledgeApplicationService:
     async def update_workflow_config(
         self, 
         knowledge_base_id: str, 
-        config_request: WorkflowConfigRequest
+        config_request: WorkflowConfigRequest,
+        user_id: str
     ) -> WorkflowConfigResponse:
         """更新工作流配置"""
         try:
-            # 验证知识库是否存在
+            # 验证知识库是否存在并检查权限
             knowledge_base = await self.knowledge_base_repo.find_by_id(knowledge_base_id)
             if not knowledge_base:
                 raise ValueError(f"知识库不存在: {knowledge_base_id}")
+            if knowledge_base.owner_id != user_id:
+                raise ValueError(f"无权限访问知识库: {knowledge_base_id}")
             
             # 将请求转换为配置字典
             config_dict = {
@@ -182,7 +185,7 @@ class KnowledgeApplicationService:
                         # 异步处理所有未处理的文件
                         import asyncio
                         asyncio.create_task(self._process_unprocessed_documents_async(
-                            knowledge_base_id, config_dict
+                            knowledge_base_id, config_dict, user_id
                         ))
                     else:
                         print(f"知识库 {knowledge_base_id} 没有未处理的文件")
@@ -314,8 +317,15 @@ class KnowledgeApplicationService:
             error_count=len(failed_uploads)
         )
     
-    async def list_files(self, knowledge_base_id: str) -> FileListBatchResponse:
+    async def list_files(self, knowledge_base_id: str, user_id: str) -> FileListBatchResponse:
         """获取知识库文件列表"""
+        # 验证用户权限
+        knowledge_base = await self.knowledge_base_repo.find_by_id(knowledge_base_id)
+        if not knowledge_base:
+            raise ValueError("知识库不存在")
+        if knowledge_base.owner_id != user_id:
+            raise ValueError("无权限访问此知识库")
+        
         documents = await self.document_repo.find_by_knowledge_base_id(knowledge_base_id)
         
         file_responses = []
@@ -337,8 +347,15 @@ class KnowledgeApplicationService:
             total=len(file_responses)
         )
     
-    async def delete_knowledge_base(self, knowledge_base_id: str) -> bool:
+    async def delete_knowledge_base(self, knowledge_base_id: str, user_id: str) -> bool:
         """删除知识库"""
+        # 验证用户权限
+        knowledge_base = await self.knowledge_base_repo.find_by_id(knowledge_base_id)
+        if not knowledge_base:
+            return False
+        if knowledge_base.owner_id != user_id:
+            raise ValueError("无权限删除此知识库")
+        
         return await self.knowledge_base_domain_service.delete_knowledge_base(knowledge_base_id)
     
     def _to_knowledge_base_response(self, knowledge_base: KnowledgeBase) -> KnowledgeBaseResponse:
@@ -373,7 +390,7 @@ class KnowledgeApplicationService:
         knowledge_base_id: str,
         user_id: str = None
     ) -> Dict[str, Any]:
-        """开始知识库处理流程（从文件系统读取文件）"""
+        """开始知识库处理流程（处理已上传但未入库的文件）"""
         try:
             # 1. 获取知识库和配置（在事务开始前验证）
             knowledge_base: KnowledgeBase | None = await self.knowledge_base_repo.find_by_id(knowledge_base_id)
@@ -383,7 +400,7 @@ class KnowledgeApplicationService:
             if not knowledge_base.config:
                 raise ValueError("知识库配置为空，请先配置工作流参数")
             
-            # 2. 从文件系统扫描未处理的文件
+            # 2. 扫描uploads目录中的文件，但只处理未入库的文件
             upload_dir = f"uploads/{knowledge_base_id}"
             if not os.path.exists(upload_dir):
                 return {
@@ -393,15 +410,58 @@ class KnowledgeApplicationService:
                     "total_chunks": 0
                 }
             
+            # 获取已入库的文档列表
+            existing_documents = await self.document_repo.find_by_knowledge_base_id(knowledge_base_id)
+            existing_docs_by_filename = {doc.filename: doc for doc in existing_documents}
+            
+            print(f"📋 知识库中已有 {len(existing_documents)} 个文档")
+            
+            # 扫描uploads目录，智能处理文件
             uploaded_files = []
+            files_to_delete = []  # 需要删除的旧文档
+            
             for filename in os.listdir(upload_dir):
                 file_path = os.path.join(upload_dir, filename)
-                if os.path.isfile(file_path):
-                    uploaded_files.append({
-                        'filename': filename,
-                        'file_path': file_path,
-                        'file_size': os.path.getsize(file_path)
-                    })
+                if not os.path.isfile(file_path):
+                    continue
+                
+                # 计算新文件的hash
+                import hashlib
+                with open(file_path, 'rb') as f:
+                    content = f.read()
+                    new_file_hash = hashlib.sha256(content).hexdigest()
+                
+                # 检查是否有同名文件
+                if filename in existing_docs_by_filename:
+                    existing_doc = existing_docs_by_filename[filename]
+                    
+                    if existing_doc.content_hash == new_file_hash:
+                        # hash相同，真正重复，跳过
+                        print(f"⏭️  文件内容相同，跳过: {filename} (hash: {new_file_hash[:16]}...)")
+                        continue
+                    else:
+                        # hash不同，文件已更新，需要删除旧数据
+                        print(f"🔄 文件已更新，将删除旧数据: {filename}")
+                        print(f"   旧hash: {existing_doc.content_hash[:16] if existing_doc.content_hash else 'None'}...")
+                        print(f"   新hash: {new_file_hash[:16]}...")
+                        files_to_delete.append(existing_doc)
+                
+                # 添加到待处理列表
+                uploaded_files.append({
+                    'filename': filename,
+                    'file_path': file_path,
+                    'file_size': os.path.getsize(file_path),
+                    'content_hash': new_file_hash
+                })
+                print(f"📄 发现待处理文件: {filename}")
+            
+            # 删除需要更新的旧文档及其相关数据
+            if files_to_delete:
+                print(f"🗑️  删除 {len(files_to_delete)} 个旧文档及其数据...")
+                for old_doc in files_to_delete:
+                    await self._delete_document_and_related_data(old_doc.document_id)
+            
+            print(f"🔍 找到 {len(uploaded_files)} 个待处理文件")
             
             if not uploaded_files:
                 return {
@@ -411,74 +471,8 @@ class KnowledgeApplicationService:
                     "total_chunks": 0
                 }
             
-            # 3. 开始处理流程 - 每个文件在独立的子事务中处理
-            total_chunks = 0
-            processed_documents = 0
-            failed_documents = []
-            
-            chunking_config = knowledge_base.config.get('chunking', {})
-            
-            for file_info in uploaded_files:
-                try:
-                    # 解析文档
-                    document = await self.document_parser_service.parse_document(
-                        file_info['file_path'],
-                        file_info['filename'],
-                        knowledge_base_id
-                    )
-                    
-                    # 设置文档属性
-                    document.original_path = file_info['file_path']
-                    document.file_size = file_info['file_size']
-                    
-                    # 计算文件哈希
-                    import hashlib
-                    with open(file_info['file_path'], 'rb') as f:
-                        content = f.read()
-                        document.content_hash = hashlib.sha256(content).hexdigest()
-                    
-                    # 在同一事务中保存文档和分块
-                    saved_document, chunks_count = await self._save_document_and_chunks_in_transaction(
-                        knowledge_base_id, document, chunking_config, file_info['file_path']
-                    )
-                    
-                    total_chunks += chunks_count
-                    processed_documents += 1
-                    
-                    # 启动异步embedding处理任务（不阻塞主流程）
-                    if saved_document.document_id:
-                        # 使用传入的用户ID，如果没有则使用知识库的所有者ID
-                        effective_user_id = user_id or knowledge_base.owner_id
-                        if not effective_user_id:
-                            raise ValueError("无法确定用户ID，请确保已登录")
-                        
-                        asyncio.create_task(self._process_document_embeddings_async(
-                            knowledge_base_id, saved_document.document_id, effective_user_id
-                        ))
-                    
-                except Exception as e:
-                    print(f"处理文件 {file_info['filename']} 失败: {str(e)}")
-                    failed_documents.append({
-                        "filename": file_info['filename'],
-                        "error": str(e)
-                    })
-                    # 继续处理下一个文件，不中断整个流程
-                    continue
-            
-            # 4. 更新知识库统计信息（在单独的操作中，避免事务冲突）
-            try:
-                await self.knowledge_base_domain_service.update_knowledge_base_statistics(knowledge_base_id)
-            except Exception as stats_error:
-                print(f"警告：更新知识库统计失败 - {str(stats_error)}")
-                # 统计更新失败不影响主流程
-            
-            return {
-                "success": True,
-                "message": f"处理完成，共处理 {processed_documents} 个文档，生成 {total_chunks} 个文本块",
-                "processed_documents": processed_documents,
-                "total_chunks": total_chunks,
-                "failed_documents": failed_documents
-            }
+            # 3. 使用通用处理逻辑
+            return await self._process_file_list(knowledge_base, uploaded_files, user_id)
             
         except ValueError as ve:
             # 验证错误，直接抛出
@@ -486,6 +480,181 @@ class KnowledgeApplicationService:
         except Exception as e:
             # 其他异常，包装后抛出
             raise Exception(f"处理流程失败: {str(e)}")
+    
+    async def _process_file_list(
+        self,
+        knowledge_base: KnowledgeBase,
+        uploaded_files: List[Dict[str, Any]],
+        user_id: str = None
+    ) -> Dict[str, Any]:
+        """
+        处理文件列表的通用逻辑
+        """
+        knowledge_base_id = knowledge_base.knowledge_base_id
+        total_chunks = 0
+        processed_documents = 0
+        failed_documents = []
+        
+        chunking_config = knowledge_base.config.get('chunking', {})
+        
+        for file_info in uploaded_files:
+            try:
+                # 解析文档
+                document = await self.document_parser_service.parse_document(
+                    file_info['file_path'],
+                    file_info['filename'],
+                    knowledge_base_id
+                )
+                
+                # 清理文档内容中的无效字符
+                document.content = self._clean_text_content(document.content)
+                
+                # 设置文档属性
+                document.original_path = file_info['file_path']
+                document.file_size = file_info['file_size']
+                
+                # 使用预计算的hash值（如果有的话）
+                if 'content_hash' in file_info:
+                    document.content_hash = file_info['content_hash']
+                    print(f"📋 文件 {file_info['filename']} 使用预计算hash: {document.content_hash[:16]}...")
+                else:
+                    # 计算文件哈希（用于去重检查）
+                    import hashlib
+                    with open(file_info['file_path'], 'rb') as f:
+                        content = f.read()
+                        document.content_hash = hashlib.sha256(content).hexdigest()
+                    print(f"📋 文件 {file_info['filename']} 计算hash: {document.content_hash[:16]}...")
+                
+                # 在同一事务中保存文档和分块
+                saved_document, chunks_count = await self._save_document_and_chunks_in_transaction(
+                    knowledge_base_id, document, chunking_config, file_info['file_path']
+                )
+                
+                total_chunks += chunks_count
+                if chunks_count > 0:
+                    processed_documents += 1
+                    print(f"✅ 文件 {file_info['filename']} 处理完成，生成 {chunks_count} 个分块")
+                else:
+                    print(f"⏭️  文件 {file_info['filename']} 已存在，跳过处理")
+                
+                # 记录需要处理embedding的文档（延迟到事务提交后）
+                # 只对新处理的文档启动embedding任务
+                if saved_document.document_id and chunks_count > 0:
+                    # 使用传入的用户ID，如果没有则使用知识库的所有者ID
+                    effective_user_id = user_id or knowledge_base.owner_id
+                    if not effective_user_id:
+                        raise ValueError("无法确定用户ID，请确保已登录")
+                    
+                    # 添加到待处理列表，而不是立即启动异步任务
+                    if not hasattr(self, '_pending_embedding_tasks'):
+                        self._pending_embedding_tasks = []
+                    self._pending_embedding_tasks.append({
+                        'knowledge_base_id': knowledge_base_id,
+                        'document_id': saved_document.document_id,
+                        'user_id': effective_user_id
+                    })
+                    print(f"📝 文档 {file_info['filename']} 已加入embedding处理队列")
+                
+            except Exception as e:
+                print(f"处理文件 {file_info['filename']} 失败: {str(e)}")
+                failed_documents.append({
+                    "filename": file_info['filename'],
+                    "error": str(e)
+                })
+                # 继续处理下一个文件，不中断整个流程
+                continue
+        
+        # 4. 更新知识库统计信息（在单独的操作中，避免事务冲突）
+        try:
+            await self.knowledge_base_domain_service.update_knowledge_base_statistics(knowledge_base_id)
+        except Exception as stats_error:
+            print(f"警告：更新知识库统计失败 - {str(stats_error)}")
+            # 统计更新失败不影响主流程
+        
+        # 5. 待处理的embedding任务将在controller中事务提交后启动
+        
+        return {
+            "success": True,
+            "message": f"处理完成，共处理 {processed_documents} 个文档，生成 {total_chunks} 个文本块",
+            "processed_documents": processed_documents,
+            "total_chunks": total_chunks,
+            "failed_documents": failed_documents
+        }
+    
+    async def _delete_document_and_related_data(self, document_id: str) -> None:
+        """
+        删除文档及其相关的所有数据（chunks和embeddings）
+        
+        Args:
+            document_id: 文档ID
+        """
+        try:
+            print(f"🗑️  开始删除文档及相关数据: {document_id}")
+            
+            # 1. 删除embeddings（通过document_id批量删除）
+            try:
+                from ...infrastructure.repositories.knowledge.embedding_vector_repository import EmbeddingVectorRepository
+                from ...infrastructure.database import get_async_session
+                async with get_async_session() as session:
+                    embedding_repo = EmbeddingVectorRepository(session)
+                    deleted_embeddings = await embedding_repo.delete_embeddings_by_document(document_id)
+                    print(f"   删除了 {deleted_embeddings} 个embeddings")
+                    await session.commit()
+            except Exception as e:
+                print(f"   删除embeddings失败: {str(e)}")
+            
+            # 2. 删除chunks
+            deleted_chunks = await self.document_chunk_repo.delete_by_document_id(document_id)
+            print(f"   删除了 {deleted_chunks} 个chunks")
+            
+            # 3. 删除文档
+            success = await self.document_repo.delete_by_id(document_id)
+            if success:
+                print(f"   ✅ 文档删除成功: {document_id}")
+            else:
+                print(f"   ⚠️  文档删除失败: {document_id}")
+                
+        except Exception as e:
+            print(f"❌ 删除文档数据失败: {document_id}, 错误: {str(e)}")
+            # 不抛出异常，允许继续处理其他文件
+    
+    def _clean_text_content(self, content: str) -> str:
+        """
+        清理文本内容中的无效字符
+        
+        Args:
+            content: 原始文本内容
+            
+        Returns:
+            清理后的文本内容
+        """
+        if not content:
+            return content
+        
+        try:
+            # 1. 移除空字节和其他控制字符
+            content = content.replace('\x00', '')  # 移除空字节
+            content = content.replace('\x0b', '')  # 移除垂直制表符
+            content = content.replace('\x0c', '')  # 移除换页符
+            
+            # 2. 移除其他不可打印的控制字符（保留常用的换行符、制表符等）
+            import re
+            # 保留常用的空白字符：空格、制表符、换行符、回车符
+            content = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]', '', content)
+            
+            # 3. 确保内容是有效的UTF-8
+            content = content.encode('utf-8', errors='ignore').decode('utf-8')
+            
+            # 4. 清理多余的空白字符
+            content = re.sub(r'\n{3,}', '\n\n', content)  # 最多保留两个连续换行
+            content = re.sub(r'[ \t]+', ' ', content)     # 多个空格/制表符合并为一个空格
+            
+            return content.strip()
+            
+        except Exception as e:
+            print(f"⚠️  文本清理失败，使用原始内容: {str(e)}")
+            # 如果清理失败，至少移除空字节
+            return content.replace('\x00', '') if content else content
     
     async def _process_single_document(
         self, 
@@ -692,7 +861,7 @@ class KnowledgeApplicationService:
             user_id: 用户ID
         """
         try:
-            print(f"开始异步处理文档 {document_id} 的embedding...")
+            print(f"🚀 开始异步处理文档 {document_id} 的embedding...")
             
             # 使用新的DDD架构的embedding应用服务
             from ...infrastructure.database import get_async_session
@@ -705,9 +874,12 @@ class KnowledgeApplicationService:
                 )
                 
                 if result.success:
-                    print(f"文档 {document_id} embedding处理成功: {result.message}")
+                    print(f"✅ 文档 {document_id} embedding处理成功: {result.message}")
+                    print(f"📊 处理统计: 成功 {result.processed_chunks} 个分块，失败 {result.failed_chunks} 个分块")
                 else:
-                    print(f"文档 {document_id} embedding处理失败: {result.message}")
+                    print(f"❌ 文档 {document_id} embedding处理失败: {result.message}")
+                    print(f"📊 处理统计: 成功 {result.processed_chunks} 个分块，失败 {result.failed_chunks} 个分块")
+                    print(f"💡 建议检查embedding模型配置和API密钥")
                 
         except Exception as e:
             print(f"异步embedding处理出错: {str(e)}")
@@ -798,8 +970,22 @@ class KnowledgeApplicationService:
             tuple[Document, int]: 保存的文档和分块数量
         """
         try:
-            # 1. 保存文档到数据库
-            saved_document = await self.document_repo.save(document)
+            # 1. 使用领域服务保存文档（包含去重检查）
+            try:
+                saved_document = await self.knowledge_base_domain_service.add_document_to_knowledge_base(
+                    knowledge_base_id, document
+                )
+                print(f"✅ 文档保存成功: {document.filename}")
+            except ValueError as e:
+                if "文档内容重复" in str(e):
+                    print(f"⚠️  文档内容重复，跳过: {document.filename}")
+                    # 查找已存在的文档
+                    existing_doc = await self.document_repo.find_by_content_hash(
+                        document.content_hash, knowledge_base_id
+                    )
+                    if existing_doc:
+                        return existing_doc, 0  # 返回已存在的文档，分块数为0
+                raise e
             
             # 2. 获取文档内容进行分块
             content = ""
@@ -862,7 +1048,8 @@ class KnowledgeApplicationService:
     async def _process_unprocessed_documents_async(
         self, 
         knowledge_base_id: str, 
-        config: Dict[str, Any]
+        config: Dict[str, Any],
+        user_id: str
     ) -> None:
         """
         异步处理未处理的文档（从文件系统读取文件，文档落库+分块在同一事务中）
@@ -870,11 +1057,21 @@ class KnowledgeApplicationService:
         Args:
             knowledge_base_id: 知识库ID
             config: 完整的工作流配置
+            user_id: 用户ID，用于验证权限
         """
         try:
             print(f"开始异步处理知识库 {knowledge_base_id} 的文件...")
             
-            # 1. 从文件系统扫描未处理的文件
+            # 1. 验证用户对知识库的权限
+            knowledge_base = await self.knowledge_base_repo.find_by_id(knowledge_base_id)
+            if not knowledge_base:
+                print(f"知识库 {knowledge_base_id} 不存在")
+                return
+            if knowledge_base.owner_id != user_id:
+                print(f"用户 {user_id} 无权限访问知识库 {knowledge_base_id}")
+                return
+            
+            # 2. 从文件系统扫描未处理的文件
             upload_dir = f"uploads/{knowledge_base_id}"
             if not os.path.exists(upload_dir):
                 print(f"上传目录不存在: {upload_dir}")
@@ -937,12 +1134,27 @@ class KnowledgeApplicationService:
                     
                     print(f"文件 {file_info['filename']} 处理完成，生成 {chunks_count} 个分块")
                     
-                    # 异步处理嵌入（如果配置了高质量嵌入）
-                    if embedding_config.get('strategy') == 'high_quality':
-                        import asyncio
-                        asyncio.create_task(self._process_embeddings_async(
-                            saved_document.document_id or "", knowledge_base_id
-                        ))
+                    # 异步处理嵌入（检查知识库的实际embedding配置）
+                    try:
+                        # 获取知识库的实际配置
+                        kb = await self.knowledge_base_repo.find_by_id(knowledge_base_id)
+                        if kb and kb.config:
+                            kb_embedding_config = kb.config.get('embedding', {})
+                            strategy = kb_embedding_config.get('strategy', 'economic')
+                            print(f"📋 知识库embedding策略: {strategy}")
+                            
+                            if strategy == 'high_quality':
+                                print(f"🚀 启动异步embedding处理...")
+                                import asyncio
+                                asyncio.create_task(self._process_embeddings_async(
+                                    saved_document.document_id or "", knowledge_base_id
+                                ))
+                            else:
+                                print(f"⚠️  跳过embedding处理，策略为: {strategy}")
+                        else:
+                            print(f"❌ 知识库没有embedding配置，跳过embedding处理")
+                    except Exception as embedding_error:
+                        print(f"❌ 检查embedding配置失败: {str(embedding_error)}")
                     
                 except Exception as file_error:
                     print(f"处理文件 {file_info['filename']} 失败: {str(file_error)}")

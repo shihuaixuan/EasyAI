@@ -146,7 +146,10 @@ async def get_knowledge_base(
         if not knowledge_base:
             raise HTTPException(status_code=404, detail="知识库不存在")
         
-        # TODO: 验证用户权限
+        # 验证用户权限
+        if knowledge_base.owner_id != current_user_id:
+            raise HTTPException(status_code=403, detail="无权限访问此知识库")
+        
         return KnowledgeBaseResponse(
             knowledge_base_id=knowledge_base.knowledge_base_id or "",
             name=knowledge_base.name,
@@ -189,6 +192,13 @@ async def get_knowledge_base_overview(
             document_repo=document_repo,
             chunk_repo=document_chunk_repo
         )
+        
+        # 验证用户权限
+        knowledge_base = await knowledge_base_repo.find_by_id(knowledge_base_id)
+        if not knowledge_base:
+            raise HTTPException(status_code=404, detail="知识库不存在")
+        if knowledge_base.owner_id != current_user_id:
+            raise HTTPException(status_code=403, detail="无权限访问此知识库")
         
         overview = await knowledge_base_domain_service.get_knowledge_base_overview(knowledge_base_id)
         
@@ -233,78 +243,52 @@ async def update_workflow_config(
         # 创建使用当前请求会话的仓储实例
         from ...infrastructure.repositories.knowledge.document_sql_repository import DocumentSqlRepository
         from ...infrastructure.repositories.knowledge.document_chunk_sql_repository import DocumentChunkSqlRepository
+        from ...domain.knowledge.services.file_upload_service import FileUploadService
+        from ...domain.knowledge.services.document_parser_service import DocumentParserService, DocumentParserRegistry
+        from ...domain.knowledge.services.chunking.document_chunking_service import DocumentChunkingService
+        from ...domain.knowledge.vo.workflow_config import FileUploadConfig
+        from ...infrastructure.parsers.document_parsers import TextDocumentParser, DefaultDocumentParser
         
         knowledge_base_repo = KnowledgeBaseDatabaseRepositoryImpl(session)
         document_repo = DocumentSqlRepository(session)
         document_chunk_repo = DocumentChunkSqlRepository(session)
         
-        # 创建领域服务（使用当前请求的会话）
+        # 创建领域服务和应用服务
         knowledge_base_domain_service = KnowledgeBaseDomainService(
             knowledge_base_repo=knowledge_base_repo,
             document_repo=document_repo,
             chunk_repo=document_chunk_repo
         )
         
-        # 验证知识库是否存在
-        knowledge_base = await knowledge_base_repo.find_by_id(knowledge_base_id)
-        if not knowledge_base:
-            raise HTTPException(status_code=404, detail=f"知识库不存在: {knowledge_base_id}")
+        file_upload_config = FileUploadConfig()
+        file_upload_service = FileUploadService(file_upload_config)
         
-        # 将请求转换为配置字典
-        config_dict = {
-            "chunking": {
-                "strategy": config_request.chunking.strategy,
-                "separator": config_request.chunking.separator,
-                "max_length": config_request.chunking.max_length,
-                "overlap_length": config_request.chunking.overlap_length,
-                "preprocessing": {
-                    "remove_extra_whitespace": config_request.chunking.remove_extra_whitespace,
-                    "remove_urls": config_request.chunking.remove_urls,
-                    "remove_emails": config_request.chunking.remove_emails
-                }
-            },
-            "embedding": {
-                "strategy": config_request.embedding.strategy,
-                "model_name": config_request.embedding.model_name
-            },
-            "retrieval": {
-                "strategy": config_request.retrieval.strategy,
-                "top_k": config_request.retrieval.top_k,
-                "score_threshold": config_request.retrieval.score_threshold,
-                "enable_rerank": config_request.retrieval.enable_rerank,
-                "rerank_model": config_request.retrieval.rerank_model
-            }
-        }
+        parser_registry = DocumentParserRegistry()
+        parser_registry.register(['.txt', '.md', '.mdx', '.csv', '.json', '.xml', '.html', '.htm'], TextDocumentParser)
+        parser_registry.register(['.pdf', '.doc', '.docx', '.xlsx', '.xls', '.ppt', '.pptx'], DefaultDocumentParser)
+        document_parser_service = DocumentParserService(parser_registry)
         
-        # 添加父子分段特有配置
-        if config_request.chunking.strategy == "parent_child":
-            config_dict["chunking"].update({
-                "parent_separator": config_request.chunking.parent_separator,
-                "parent_max_length": config_request.chunking.parent_max_length,
-                "child_separator": config_request.chunking.child_separator,
-                "child_max_length": config_request.chunking.child_max_length
-            })
+        document_chunking_service = DocumentChunkingService()
         
-        # 更新配置（使用领域服务）
-        updated_knowledge_base = await knowledge_base_domain_service.update_knowledge_base_config(
-            knowledge_base_id, config_dict
+        application_service = KnowledgeApplicationService(
+            knowledge_base_domain_service=knowledge_base_domain_service,
+            file_upload_service=file_upload_service,
+            document_parser_service=document_parser_service,
+            document_chunking_service=document_chunking_service,
+            knowledge_base_repo=knowledge_base_repo,
+            document_repo=document_repo,
+            document_chunk_repo=document_chunk_repo
+        )
+        
+        # 使用应用服务更新配置（包含权限验证和异步文档处理）
+        result = await application_service.update_workflow_config(
+            knowledge_base_id, config_request, current_user_id
         )
         
         # 提交数据库事务
         await session.commit()
         
-        # 验证配置更新是否成功
-        if not updated_knowledge_base.config:
-            raise HTTPException(status_code=500, detail="配置更新失败：数据库中没有保存配置")
-        
-        print(f"配置更新成功：知识库 {knowledge_base_id}, 新配置: {config_dict}")
-        
-        # 返回响应
-        return WorkflowConfigResponse(
-            knowledge_base_id=knowledge_base_id,
-            config=updated_knowledge_base.config,
-            updated_at=updated_knowledge_base.updated_at or datetime.now()
-        )
+        return result
         
     except HTTPException:
         await session.rollback()
@@ -366,7 +350,13 @@ async def upload_file(
             document_chunk_repo=document_chunk_repo
         )
         
-        # TODO: 验证用户对知识库的权限
+        # 验证用户对知识库的权限
+        knowledge_base = await knowledge_base_repo.find_by_id(knowledge_base_id)
+        if not knowledge_base:
+            raise HTTPException(status_code=404, detail="知识库不存在")
+        if knowledge_base.owner_id != current_user_id:
+            raise HTTPException(status_code=403, detail="无权限访问此知识库")
+        
         result = await application_service.upload_file(knowledge_base_id, file)
         
         # 只有成功时才提交事务，失败时不需要回滚（应用服务内部处理）
@@ -431,7 +421,13 @@ async def upload_files_batch(
             document_chunk_repo=document_chunk_repo
         )
         
-        # TODO: 验证用户对知识库的权限
+        # 验证用户对知识库的权限
+        knowledge_base = await knowledge_base_repo.find_by_id(knowledge_base_id)
+        if not knowledge_base:
+            raise HTTPException(status_code=404, detail="知识库不存在")
+        if knowledge_base.owner_id != current_user_id:
+            raise HTTPException(status_code=403, detail="无权限访问此知识库")
+        
         result = await application_service.upload_files_batch(knowledge_base_id, files)
         
         # 批量上传的事务由应用服务内部管理，这里只需要提交
@@ -494,8 +490,8 @@ async def list_files(
             document_chunk_repo=document_chunk_repo
         )
         
-        # TODO: 验证用户对知识库的权限
-        result = await application_service.list_files(knowledge_base_id)
+        # 获取文件列表（包含权限验证）
+        result = await application_service.list_files(knowledge_base_id, current_user_id)
         return result
     except Exception as e:
         print(f"获取文件列表出错: {str(e)}")
@@ -527,12 +523,12 @@ async def delete_file(
             chunk_repo=document_chunk_repo
         )
         
-        # 验证知识库是否存在
+        # 验证知识库是否存在并检查权限
         knowledge_base = await knowledge_base_repo.find_by_id(knowledge_base_id)
         if not knowledge_base:
             raise HTTPException(status_code=404, detail="知识库不存在")
-        
-        # TODO: 验证用户对知识库的权限
+        if knowledge_base.owner_id != current_user_id:
+            raise HTTPException(status_code=403, detail="无权限访问此知识库")
         
         # 验证文档是否存在
         document = await document_repo.find_by_id(file_id)
@@ -616,8 +612,8 @@ async def delete_knowledge_base(
             document_chunk_repo=document_chunk_repo
         )
         
-        # TODO: 验证用户对知识库的权限
-        success = await application_service.delete_knowledge_base(knowledge_base_id)
+        # 删除知识库（包含权限验证）
+        success = await application_service.delete_knowledge_base(knowledge_base_id, current_user_id)
         if not success:
             raise HTTPException(status_code=404, detail="知识库不存在")
         
@@ -702,13 +698,15 @@ async def reprocess_embeddings(
 ):
     """重新处理知识库的embedding向量"""
     try:
-        # 验证知识库是否存在
+        # 验证知识库是否存在并检查权限
         from ...infrastructure.repositories.knowledge.knowledge_base_database_repository_impl import KnowledgeBaseDatabaseRepositoryImpl
         knowledge_base_repo = KnowledgeBaseDatabaseRepositoryImpl(session)
         knowledge_base = await knowledge_base_repo.find_by_id(knowledge_base_id)
         
         if not knowledge_base:
             raise HTTPException(status_code=404, detail="知识库不存在")
+        if knowledge_base.owner_id != current_user_id:
+            raise HTTPException(status_code=403, detail="无权限访问此知识库")
         
         # 启动异步embedding处理任务
         from ...application.services.embedding_application_service import create_embedding_application_service
@@ -756,6 +754,8 @@ async def reprocess_document_embeddings(
         knowledge_base = await knowledge_base_repo.find_by_id(knowledge_base_id)
         if not knowledge_base:
             raise HTTPException(status_code=404, detail="知识库不存在")
+        if knowledge_base.owner_id != current_user_id:
+            raise HTTPException(status_code=403, detail="无权限访问此知识库")
         
         document = await document_repo.find_by_id(document_id)
         if not document or document.knowledge_base_id != knowledge_base_id:
@@ -798,6 +798,15 @@ async def get_embedding_status(
     """获取知识库的embedding状态"""
     try:
         from ...infrastructure.repositories.knowledge.document_chunk_sql_repository import DocumentChunkSqlRepository
+        from ...infrastructure.repositories.knowledge.knowledge_base_database_repository_impl import KnowledgeBaseDatabaseRepositoryImpl
+        
+        # 验证用户权限
+        knowledge_base_repo = KnowledgeBaseDatabaseRepositoryImpl(session)
+        knowledge_base = await knowledge_base_repo.find_by_id(knowledge_base_id)
+        if not knowledge_base:
+            raise HTTPException(status_code=404, detail="知识库不存在")
+        if knowledge_base.owner_id != current_user_id:
+            raise HTTPException(status_code=403, detail="无权限访问此知识库")
         
         chunk_repo = DocumentChunkSqlRepository(session)
         
@@ -830,7 +839,7 @@ async def start_knowledge_processing(
     session: AsyncSession = Depends(get_database_session),
     current_user_id: str = Depends(get_current_user_id)
 ):
-    """开始知识库处理流程"""
+    """开始知识库处理流程（处理uploads目录中未入库的文件）"""
     try:
         # 创建使用当前请求会话的仓储实例
         from ...infrastructure.repositories.knowledge.document_sql_repository import DocumentSqlRepository
@@ -879,6 +888,19 @@ async def start_knowledge_processing(
         
         # 提交数据库事务
         await session.commit()
+        
+        # 在事务提交后启动异步embedding处理任务
+        if hasattr(application_service, '_pending_embedding_tasks') and application_service._pending_embedding_tasks:
+            import asyncio
+            print(f"🚀 启动 {len(application_service._pending_embedding_tasks)} 个异步embedding处理任务...")
+            for task_info in application_service._pending_embedding_tasks:
+                asyncio.create_task(application_service._process_document_embeddings_async(
+                    task_info['knowledge_base_id'],
+                    task_info['document_id'],
+                    task_info['user_id']
+                ))
+            # 清空待处理列表
+            application_service._pending_embedding_tasks = []
         
         return result
         

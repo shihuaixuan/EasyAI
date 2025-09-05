@@ -47,34 +47,49 @@ class EmbeddingApplicationService:
             chunks = await self.document_chunk_repo.find_by_document_id(document_id)
             
             if not chunks:
+                print(f"❌ 文档 {document_id} 没有分块数据")
                 return EmbeddingProcessResult.failure_result(
                     f"文档 {document_id} 没有分块数据"
                 )
             
+            print(f"📊 找到 {len(chunks)} 个分块需要处理embedding")
+            
             # 2. 获取embedding配置
+            print(f"🔍 开始获取embedding配置: knowledge_base_id={knowledge_base_id}, user_id={user_id}")
             embedding_config = await self.embedding_config_repo.get_embedding_config_by_knowledge_base_id(
                 knowledge_base_id, user_id
             )
             
             if not embedding_config:
+                print(f"⚠️  未找到知识库专用embedding配置，使用默认配置")
                 embedding_config = await self.embedding_config_repo.get_default_embedding_config()
+                print(f"📋 默认embedding配置: {embedding_config.model_name} ({embedding_config.provider})")
+            else:
+                print(f"✅ 使用知识库embedding配置: {embedding_config.model_name} ({embedding_config.provider})")
             
             # 3. 创建embedding领域服务
+            print(f"🔧 正在创建embedding服务...")
             embedding_domain_service = await self._create_embedding_domain_service(embedding_config)
             if not embedding_domain_service:
+                print(f"❌ 无法创建embedding服务，请检查配置")
                 return EmbeddingProcessResult.failure_result("无法创建embedding服务")
+            
+            print(f"✅ Embedding服务创建成功")
             
             try:
                 # 4. 处理embedding
                 processed_count = 0
                 failed_count = 0
                 
-                for chunk in chunks:
+                for i, chunk in enumerate(chunks, 1):
                     try:
                         # 检查分块是否已有向量
                         if chunk.has_vector():
+                            print(f"⏭️  分块 {i}/{len(chunks)} 已有向量，跳过")
                             processed_count += 1
                             continue
+                        
+                        print(f"🔄 处理分块 {i}/{len(chunks)} (索引: {chunk.chunk_index})")
                         
                         # 生成embedding向量
                         updated_chunk = await embedding_domain_service.generate_single_chunk_embedding(chunk)
@@ -83,9 +98,10 @@ class EmbeddingApplicationService:
                         await self.document_chunk_repo.update(updated_chunk)
                         
                         processed_count += 1
+                        print(f"✅ 分块 {i} 向量生成并保存成功")
                         
                     except Exception as chunk_error:
-                        print(f"为分块 {chunk.chunk_index} 生成向量失败: {str(chunk_error)}")
+                        print(f"❌ 分块 {chunk.chunk_index} 生成向量失败: {str(chunk_error)}")
                         failed_count += 1
                         continue
                 

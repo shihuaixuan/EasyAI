@@ -279,6 +279,7 @@ src/docs/
 /models/
 /model/
 /test/
+/.trae/
 # 开发环境配置
 .env.dev
 .env.development

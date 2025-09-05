@@ -14,6 +14,8 @@ class SearchQuery:
     filters: Optional[Dict[str, Any]] = None
     include_metadata: bool = True
     max_results: int = 10
+    vector: Optional[List[float]] = None  # 查询向量，用于向量相似度搜索
+    limit: Optional[int] = None  # 结果数量限制
     
     def __post_init__(self):
         if self.filters is None:

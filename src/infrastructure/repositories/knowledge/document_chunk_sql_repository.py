@@ -1,6 +1,7 @@
 """
-文档分块仓储SQL实现 - 基于旧表结构 chunks 表
-旧表字段：id, document_id, dataset_id, parent_chunk_id, chunk_type, chunk_level, content, char_size, token_size, index_in_doc, meta, is_active, created_at
+文档分块仓储SQL实现 - 基于chunks表和embeddings表
+chunks表字段：id, document_id, dataset_id, parent_chunk_id, chunk_type, chunk_level, content, char_size, token_size, index_in_doc, meta, is_active, created_at
+embeddings表字段：id, chunk_id, embedding_data(vector), embedding_model_id, version, created_at
 """
 
 import json
@@ -12,13 +13,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ....domain.knowledge.entities.document_chunk import DocumentChunk
 from ....domain.knowledge.repositories.document_chunk_repository import DocumentChunkRepository
 from ....domain.knowledge.vo.search_query import SearchQuery, SearchResult
+from .embedding_vector_repository import EmbeddingVectorRepository
 
 
 class DocumentChunkSqlRepository(DocumentChunkRepository):
-    """文档分块仓储SQL实现 - 基于 chunks 表"""
+    """文档分块仓储SQL实现 - 基于 chunks 表和 embeddings 表"""
     
     def __init__(self, session: AsyncSession):
         self.session = session
+        self.embedding_repo = EmbeddingVectorRepository(session)
     
     async def save(self, chunk: DocumentChunk) -> DocumentChunk:
         """保存文档块到 chunks 表"""
@@ -49,6 +52,15 @@ class DocumentChunkSqlRepository(DocumentChunkRepository):
         row = result.fetchone()
         if row:
             chunk.chunk_id = str(row[0])
+        
+        # 如果chunk有向量数据，保存到embeddings表
+        if chunk.has_vector():
+            await self.embedding_repo.save_embedding(
+                chunk_id=chunk.chunk_id,
+                embedding_data=chunk.vector,
+                embedding_model_id='default',  # 可以从chunk的metadata中获取
+                version=1
+            )
         
         return chunk
     
@@ -81,14 +93,23 @@ class DocumentChunkSqlRepository(DocumentChunkRepository):
     
     async def find_chunks_without_vectors(self, knowledge_base_id: str) -> List[DocumentChunk]:
         """查找没有向量的分块"""
-        sql = """
+        # 使用embedding仓储查找没有向量的chunk ID
+        chunk_ids_without_vectors = await self.embedding_repo.find_chunks_without_embeddings(knowledge_base_id)
+        
+        if not chunk_ids_without_vectors:
+            return []
+        
+        # 根据chunk ID查询chunk详细信息
+        placeholders = ','.join([f':id_{i}' for i in range(len(chunk_ids_without_vectors))])
+        sql = f"""
         SELECT * FROM chunks 
-        WHERE dataset_id = :dataset_id 
+        WHERE id IN ({placeholders})
         AND is_active = true 
-        AND (vector IS NULL OR vector = '[]' OR vector = '')
         ORDER BY created_at DESC
         """
-        result = await self.session.execute(text(sql), {"dataset_id": knowledge_base_id})
+        
+        params = {f'id_{i}': chunk_id for i, chunk_id in enumerate(chunk_ids_without_vectors)}
+        result = await self.session.execute(text(sql), params)
         rows = result.fetchall()
         return [self._from_dict(dict(row._mapping)) for row in rows]
     
@@ -99,9 +120,19 @@ class DocumentChunkSqlRepository(DocumentChunkRepository):
             'content': chunk.content,
             'char_size': len(chunk.content),
             'meta': json.dumps(chunk.metadata or {}),
-            'chunk_id': int(chunk.chunk_id or 0)
+            'chunk_id': chunk.chunk_id  # 修复：使用字符串类型的chunk_id
         }
         await self.session.execute(text(sql), chunk_data)
+        
+        # 如果chunk有向量数据，更新embeddings表
+        if chunk.has_vector():
+            await self.embedding_repo.save_embedding(
+                chunk_id=chunk.chunk_id,
+                embedding_data=chunk.vector,
+                embedding_model_id='default',  # 可以从chunk的metadata中获取
+                version=1
+            )
+        
         return chunk
     
     async def delete_by_id(self, chunk_id: str) -> bool:
@@ -117,7 +148,10 @@ class DocumentChunkSqlRepository(DocumentChunkRepository):
         count_result = await self.session.execute(text(count_sql), {"document_id": document_id})
         deleted_count = count_result.scalar() or 0
         
-        # 硬删除chunks记录（包括vector字段中的embedding向量）
+        # 删除相关的embedding向量
+        await self.embedding_repo.delete_embeddings_by_document(document_id)
+        
+        # 硬删除chunks记录
         delete_sql = "DELETE FROM chunks WHERE document_id = :document_id"
         await self.session.execute(text(delete_sql), {"document_id": document_id})
         
@@ -167,17 +201,65 @@ class DocumentChunkSqlRepository(DocumentChunkRepository):
     
     async def find_chunks_with_vectors(self, knowledge_base_id: str, limit: int = 100) -> List[DocumentChunk]:
         """查找有向量的文档块"""
-        sql = "SELECT * FROM chunks WHERE dataset_id = :dataset_id AND is_active = true LIMIT :limit"
-        result = await self.session.execute(text(sql), {
-            "dataset_id": knowledge_base_id,
-            "limit": limit
-        })
+        # 使用embedding仓储查找有向量的chunk ID
+        chunk_ids_with_vectors = await self.embedding_repo.find_chunks_with_embeddings(knowledge_base_id, limit)
+        
+        if not chunk_ids_with_vectors:
+            return []
+        
+        # 根据chunk ID查询chunk详细信息
+        placeholders = ','.join([f':id_{i}' for i in range(len(chunk_ids_with_vectors))])
+        sql = f"""
+        SELECT * FROM chunks 
+        WHERE id IN ({placeholders})
+        AND is_active = true 
+        ORDER BY created_at DESC
+        """
+        
+        params = {f'id_{i}': chunk_id for i, chunk_id in enumerate(chunk_ids_with_vectors)}
+        result = await self.session.execute(text(sql), params)
         rows = result.fetchall()
-        return [self._from_dict(dict(row._mapping)) for row in rows]
+        
+        # 加载向量数据
+        chunks = []
+        for row in rows:
+            chunk = self._from_dict(dict(row._mapping))
+            # 从embeddings表加载向量数据
+            vector_data = await self.embedding_repo.get_embedding(chunk.chunk_id)
+            if vector_data:
+                chunk.set_vector(vector_data)
+            chunks.append(chunk)
+        
+        return chunks
     
     async def search_similar(self, query: SearchQuery) -> List[SearchResult]:
         """向量相似度搜索"""
-        return await self.search_by_content(query)
+        if not query.vector:
+            # 如果没有向量，回退到内容搜索
+            return await self.search_by_content(query)
+        
+        # 使用embedding仓储进行向量相似度搜索
+        search_results_data = await self.embedding_repo.vector_similarity_search(
+            query_vector=query.vector,
+            knowledge_base_id=query.knowledge_base_id,
+            limit=query.limit or 10,
+            similarity_threshold=0.0
+        )
+        
+        # 转换为SearchResult对象
+        search_results = []
+        for data in search_results_data:
+            search_result = SearchResult(
+                chunk_id=data['chunk_id'],
+                content=data['content'],
+                score=data['similarity_score'],
+                document_id=data['document_id'],
+                chunk_index=data['chunk_index'],
+                metadata=data['metadata']
+            )
+            search_results.append(search_result)
+        
+        return search_results
     
     def _from_dict(self, data: Dict[str, Any]) -> DocumentChunk:
         """从旧表字典转换为文档块实体"""
@@ -192,7 +274,7 @@ class DocumentChunkSqlRepository(DocumentChunkRepository):
         elif not isinstance(meta_data, dict):
             meta_data = {}
         
-        return DocumentChunk(
+        chunk = DocumentChunk(
             chunk_id=str(data.get('id', '')),
             content=data['content'],
             chunk_index=data.get('index_in_doc', 0),
@@ -200,8 +282,10 @@ class DocumentChunkSqlRepository(DocumentChunkRepository):
             end_offset=data.get('char_size', 0),
             document_id=str(data['document_id']),
             knowledge_base_id=str(data['dataset_id']),
-            vector=None,
+            vector=None,  # 向量数据将从embeddings表单独加载
             metadata=meta_data,
             created_at=data.get('created_at'),
             updated_at=data.get('created_at')
         )
+        
+        return chunk
