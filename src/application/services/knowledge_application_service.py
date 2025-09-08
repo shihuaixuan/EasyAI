@@ -4,6 +4,7 @@
 
 import os
 import asyncio
+import logging
 from src.domain.knowledge.entities.document_chunk import DocumentChunk
 from src.domain.knowledge.entities.knowledge_base import KnowledgeBase
 from typing import List, Optional, Dict, Any
@@ -37,6 +38,8 @@ from ...domain.knowledge.services.chunking.document_chunking_service import Docu
 from ...domain.knowledge.repositories.document_chunk_repository import DocumentChunkRepository
 from ...domain.knowledge.vo.workflow_config import FileUploadConfig
 from ...domain.knowledge.vo.chunking_config import ChunkingConfig, TextPreprocessingConfig
+
+logging.basicConfig(level=logging.DEBUG)
 
 
 class KnowledgeApplicationService:
@@ -401,8 +404,10 @@ class KnowledgeApplicationService:
                 raise ValueError("知识库配置为空，请先配置工作流参数")
             
             # 2. 扫描uploads目录中的文件，但只处理未入库的文件
+            # TODO: 未来会有专门存储文件的实现，比如：minio/oss
             upload_dir = f"uploads/{knowledge_base_id}"
             if not os.path.exists(upload_dir):
+                logging.info(f"上传目录不存在: {upload_dir}")
                 return {
                     "success": True,
                     "message": "没有找到需要处理的文件",
@@ -414,7 +419,7 @@ class KnowledgeApplicationService:
             existing_documents = await self.document_repo.find_by_knowledge_base_id(knowledge_base_id)
             existing_docs_by_filename = {doc.filename: doc for doc in existing_documents}
             
-            print(f"📋 知识库中已有 {len(existing_documents)} 个文档")
+            logging.info(f"📋 知识库中已有 {len(existing_documents)} 个文档")
             
             # 扫描uploads目录，智能处理文件
             uploaded_files = []
@@ -437,13 +442,11 @@ class KnowledgeApplicationService:
                     
                     if existing_doc.content_hash == new_file_hash:
                         # hash相同，真正重复，跳过
-                        print(f"⏭️  文件内容相同，跳过: {filename} (hash: {new_file_hash[:16]}...)")
+                        logging.info(f"⏭️  文件内容相同，跳过: {filename} (hash: {new_file_hash[:16]}...)")
                         continue
                     else:
                         # hash不同，文件已更新，需要删除旧数据
-                        print(f"🔄 文件已更新，将删除旧数据: {filename}")
-                        print(f"   旧hash: {existing_doc.content_hash[:16] if existing_doc.content_hash else 'None'}...")
-                        print(f"   新hash: {new_file_hash[:16]}...")
+                        logging.info(f"🔄 文件已更新，将删除旧数据: {filename}")
                         files_to_delete.append(existing_doc)
                 
                 # 添加到待处理列表
@@ -453,15 +456,15 @@ class KnowledgeApplicationService:
                     'file_size': os.path.getsize(file_path),
                     'content_hash': new_file_hash
                 })
-                print(f"📄 发现待处理文件: {filename}")
+                logging.info(f"📄 发现待处理文件: {filename}")
             
             # 删除需要更新的旧文档及其相关数据
             if files_to_delete:
-                print(f"🗑️  删除 {len(files_to_delete)} 个旧文档及其数据...")
+                logging.info(f"🗑️  删除 {len(files_to_delete)} 个旧文档及其数据...")
                 for old_doc in files_to_delete:
                     await self._delete_document_and_related_data(old_doc.document_id)
             
-            print(f"🔍 找到 {len(uploaded_files)} 个待处理文件")
+            logging.info(f"🔍 找到 {len(uploaded_files)} 个待处理文件")
             
             if not uploaded_files:
                 return {
@@ -516,14 +519,12 @@ class KnowledgeApplicationService:
                 # 使用预计算的hash值（如果有的话）
                 if 'content_hash' in file_info:
                     document.content_hash = file_info['content_hash']
-                    print(f"📋 文件 {file_info['filename']} 使用预计算hash: {document.content_hash[:16]}...")
                 else:
                     # 计算文件哈希（用于去重检查）
                     import hashlib
                     with open(file_info['file_path'], 'rb') as f:
                         content = f.read()
                         document.content_hash = hashlib.sha256(content).hexdigest()
-                    print(f"📋 文件 {file_info['filename']} 计算hash: {document.content_hash[:16]}...")
                 
                 # 在同一事务中保存文档和分块
                 saved_document, chunks_count = await self._save_document_and_chunks_in_transaction(
@@ -975,10 +976,10 @@ class KnowledgeApplicationService:
                 saved_document = await self.knowledge_base_domain_service.add_document_to_knowledge_base(
                     knowledge_base_id, document
                 )
-                print(f"✅ 文档保存成功: {document.filename}")
+                logging.info(f"✅ 文档保存成功: {document.filename}")
             except ValueError as e:
                 if "文档内容重复" in str(e):
-                    print(f"⚠️  文档内容重复，跳过: {document.filename}")
+                    logging.info(f"⚠️  文档内容重复，跳过: {document.filename}")
                     # 查找已存在的文档
                     existing_doc = await self.document_repo.find_by_content_hash(
                         document.content_hash, knowledge_base_id

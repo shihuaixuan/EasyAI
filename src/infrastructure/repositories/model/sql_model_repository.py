@@ -84,6 +84,18 @@ class SqlModelRepository(ModelRepository):
         except Exception as e:
             raise RepositoryError(f"查找Model失败: {str(e)}")
     
+    async def find_provider_name_by_model_name(self, model_name: str) -> Optional[str]:
+        """根据模型名称查找提供商名称"""
+        try:
+            stmt = select(ModelModel.provider_name).where(ModelModel.model_name == model_name)
+            result = await self._session.execute(stmt)
+            provider_name = result.scalar_one_or_none()
+            
+            return provider_name
+            
+        except Exception as e:
+            raise RepositoryError(f"查找Model的Provider名称失败: {str(e)}")
+
     async def find_by_provider_name(self, provider_name: str) -> List[Model]:
         """根据提供商名称查找所有Model"""
         try:
