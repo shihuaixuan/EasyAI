@@ -3,8 +3,8 @@
 """
 
 import os
-import asyncio
 import logging
+import re
 from src.domain.knowledge.entities.document_chunk import DocumentChunk
 from src.domain.knowledge.entities.knowledge_base import KnowledgeBase
 from typing import List, Optional, Dict, Any
@@ -38,6 +38,10 @@ from ...domain.knowledge.services.chunking.document_chunking_service import Docu
 from ...domain.knowledge.repositories.document_chunk_repository import DocumentChunkRepository
 from ...domain.knowledge.vo.workflow_config import FileUploadConfig
 from ...domain.knowledge.vo.chunking_config import ChunkingConfig, TextPreprocessingConfig
+from ...infrastructure.repositories.knowledge.embedding_vector_repository import EmbeddingVectorRepositoryImpl
+from ...infrastructure.database import get_async_session
+from ...domain.model.services.embedding.factory import create_embedding
+from .embedding_application_service import create_embedding_application_service
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -186,7 +190,6 @@ class KnowledgeApplicationService:
                     if uploaded_files:
                         print(f"开始处理 {len(uploaded_files)} 个未处理的文件")
                         # 异步处理所有未处理的文件
-                        import asyncio
                         asyncio.create_task(self._process_unprocessed_documents_async(
                             knowledge_base_id, config_dict, user_id
                         ))
@@ -431,7 +434,6 @@ class KnowledgeApplicationService:
                     continue
                 
                 # 计算新文件的hash
-                import hashlib
                 with open(file_path, 'rb') as f:
                     content = f.read()
                     new_file_hash = hashlib.sha256(content).hexdigest()
@@ -521,7 +523,6 @@ class KnowledgeApplicationService:
                     document.content_hash = file_info['content_hash']
                 else:
                     # 计算文件哈希（用于去重检查）
-                    import hashlib
                     with open(file_info['file_path'], 'rb') as f:
                         content = f.read()
                         document.content_hash = hashlib.sha256(content).hexdigest()
@@ -594,10 +595,8 @@ class KnowledgeApplicationService:
             
             # 1. 删除embeddings（通过document_id批量删除）
             try:
-                from ...infrastructure.repositories.knowledge.embedding_vector_repository import EmbeddingVectorRepository
-                from ...infrastructure.database import get_async_session
                 async with get_async_session() as session:
-                    embedding_repo = EmbeddingVectorRepository(session)
+                    embedding_repo = EmbeddingVectorRepositoryImpl(session)
                     deleted_embeddings = await embedding_repo.delete_embeddings_by_document(document_id)
                     print(f"   删除了 {deleted_embeddings} 个embeddings")
                     await session.commit()
@@ -639,7 +638,6 @@ class KnowledgeApplicationService:
             content = content.replace('\x0c', '')  # 移除换页符
             
             # 2. 移除其他不可打印的控制字符（保留常用的换行符、制表符等）
-            import re
             # 保留常用的空白字符：空格、制表符、换行符、回车符
             content = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]', '', content)
             
@@ -802,7 +800,6 @@ class KnowledgeApplicationService:
     async def _create_embedding_service(self, embedding_config: Dict[str, Any]):
         """创建embedding服务"""
         try:
-            from ...domain.model.services.embedding.factory import create_embedding
             
             # 获取配置信息
             model_name = embedding_config.get('model_name', 'BAAI/bge-large-zh-v1.5')
@@ -865,8 +862,6 @@ class KnowledgeApplicationService:
             print(f"🚀 开始异步处理文档 {document_id} 的embedding...")
             
             # 使用新的DDD架构的embedding应用服务
-            from ...infrastructure.database import get_async_session
-            from .embedding_application_service import create_embedding_application_service
             
             async with get_async_session() as session:
                 embedding_app_service = await create_embedding_application_service(session)
@@ -1120,7 +1115,6 @@ class KnowledgeApplicationService:
                     document.file_size = file_info['file_size']
                     
                     # 计算文件哈希
-                    import hashlib
                     with open(file_info['file_path'], 'rb') as f:
                         content = f.read()
                         document.content_hash = hashlib.sha256(content).hexdigest()
@@ -1146,7 +1140,6 @@ class KnowledgeApplicationService:
                             
                             if strategy == 'high_quality':
                                 print(f"🚀 启动异步embedding处理...")
-                                import asyncio
                                 asyncio.create_task(self._process_embeddings_async(
                                     saved_document.document_id or "", knowledge_base_id
                                 ))

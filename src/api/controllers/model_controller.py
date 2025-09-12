@@ -4,15 +4,15 @@ Model API控制器
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ...application.services.model_application_service import ModelApplicationService
+from ...application.services.model_app_service import ModelApplicationService
 from ...application.dto.model_dto import (
     ModelToggleRequest,
     ModelOperationResponse,
     ProviderModelsResponse
 )
 from ...domain.provider.services.provider_domain_service import ProviderDomainService
-from ...infrastructure.repositories.provider.sql_provider_repository import SqlProviderRepository
-from ...infrastructure.repositories.model.sql_model_repository import SqlModelRepository
+from ...infrastructure.repositories.provider.provider_repository_impl import ProviderRepositoryImpl
+from ...infrastructure.repositories.model.model_repository_impl import ModelRepositoryImpl
 from ...infrastructure.database import get_database_session
 from ...api.dependencies import get_current_user_id
 
@@ -23,8 +23,8 @@ def get_model_application_service(
     db_session: AsyncSession = Depends(get_database_session)
 ) -> ModelApplicationService:
     """获取Model应用服务实例"""
-    model_repository = SqlModelRepository(db_session)
-    provider_repository = SqlProviderRepository(db_session)
+    model_repository = ModelRepositoryImpl(db_session)
+    provider_repository = ProviderRepositoryImpl(db_session)
     return ModelApplicationService(model_repository, provider_repository)
 
 

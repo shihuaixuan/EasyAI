@@ -15,7 +15,7 @@ from ....domain.provider.exceptions import ModelAlreadyExistsError, RepositoryEr
 from ...models.provider_models import ModelModel
 
 
-class SqlModelRepository(ModelRepository):
+class ModelRepositoryImpl(ModelRepository):
     """
     SQLAlchemy Model仓储实现
     """

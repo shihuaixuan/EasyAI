@@ -4,6 +4,7 @@ from src.domain.user.entities.user import User
 from src.domain.user.repositories.user_repository import UserRepository
 from src.domain.user.value_objects.username import Username
 from src.domain.user.value_objects.email import Email
+from src.domain.user.value_objects.password import Password
 
 
 class UserDomainService:
@@ -132,7 +133,6 @@ class UserDomainService:
         Raises:
             ValueError: 当密码不符合强度要求时
         """
-        from src.domain.user.value_objects.password import Password
         
         try:
             Password.create(password)

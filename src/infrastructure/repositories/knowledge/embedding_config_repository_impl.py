@@ -8,8 +8,8 @@ from sqlalchemy.future import select
 
 from ....domain.knowledge.repositories.embedding_config_repository import EmbeddingConfigRepository
 from ....domain.knowledge.vo.embedding_config import EmbeddingModelConfig
-from ....infrastructure.repositories.model.sql_model_repository import SqlModelRepository
-from ....infrastructure.repositories.provider.sql_provider_repository import SqlProviderRepository
+from ....infrastructure.repositories.model.model_repository_impl import ModelRepositoryImpl
+from ....infrastructure.repositories.provider.provider_repository_impl import ProviderRepositoryImpl
 from ....infrastructure.models.knowledge_models import DatasetModel
 from ....infrastructure.security.encryption import encryption_service
 
@@ -21,8 +21,8 @@ class EmbeddingConfigRepositoryImpl(EmbeddingConfigRepository):
     
     def __init__(self, session: AsyncSession):
         self.session = session
-        self.model_repo = SqlModelRepository(session)
-        self.provider_repo = SqlProviderRepository(session)
+        self.model_repo = ModelRepositoryImpl(session)
+        self.provider_repo = ProviderRepositoryImpl(session)
     
     async def get_embedding_config_by_knowledge_base_id(
         self, 

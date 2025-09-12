@@ -20,7 +20,7 @@ from ....domain.provider.exceptions import ProviderAlreadyExistsError, Repositor
 from ...models.provider_models import ProviderModel
 
 
-class SqlProviderRepository(ProviderRepository):
+class ProviderRepositoryImpl(ProviderRepository):
     """
     SQLAlchemy Provider仓储实现
     """

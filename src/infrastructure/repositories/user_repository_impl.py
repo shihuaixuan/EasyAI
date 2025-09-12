@@ -9,7 +9,7 @@ from src.domain.user.value_objects import Username, Email, HashedPassword, UserS
 from src.infrastructure.models.user_models import UserModel
 
 
-class SqlUserRepository(UserRepository):
+class UserRepositoryImpl(UserRepository):
     """用户仓储SQL实现"""
     
     def __init__(self, session: AsyncSession):

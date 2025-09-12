@@ -13,21 +13,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ....domain.knowledge.entities.document_chunk import DocumentChunk
 from ....domain.knowledge.repositories.document_chunk_repository import DocumentChunkRepository
 from ....domain.knowledge.vo.search_query import SearchQuery, SearchResult
-from .embedding_vector_repository import EmbeddingVectorRepository
+from .embedding_vector_repository import EmbeddingVectorRepositoryImpl
+from ....infrastructure.utils.uuid_generator import uuid_generator
 
 
-class DocumentChunkSqlRepository(DocumentChunkRepository):
+class DocumentChunkRepositoryImpl(DocumentChunkRepository):
     """文档分块仓储SQL实现 - 基于 chunks 表和 embeddings 表"""
     
     def __init__(self, session: AsyncSession):
         self.session = session
-        self.embedding_repo = EmbeddingVectorRepository(session)
+        self.embedding_repo = EmbeddingVectorRepositoryImpl(session)
     
     async def save(self, chunk: DocumentChunk) -> DocumentChunk:
         """保存文档块到 chunks 表"""
         # 如果chunk没有ID，生成一个UUID
         if not chunk.chunk_id:
-            from ....infrastructure.utils.uuid_generator import uuid_generator
             chunk.chunk_id = uuid_generator.generate()
         
         sql = """
@@ -266,7 +266,6 @@ class DocumentChunkSqlRepository(DocumentChunkRepository):
         # 处理meta字段，可能是JSON字符串也可能是字典
         meta_data = data.get('meta')
         if isinstance(meta_data, str):
-            import json
             try:
                 meta_data = json.loads(meta_data)
             except json.JSONDecodeError:

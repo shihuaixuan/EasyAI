@@ -1,6 +1,7 @@
 """
 知识库领域 - Embedding领域服务
 """
+import asyncio
 from typing import List, Dict, Any, Optional
 from abc import ABC, abstractmethod
 
@@ -139,7 +140,6 @@ class EmbeddingDomainService:
         if hasattr(self.embedding_service, 'close'):
             close_method = getattr(self.embedding_service, 'close')
             if callable(close_method):
-                import asyncio
                 if asyncio.iscoroutinefunction(close_method):
                     await close_method()
                 else:

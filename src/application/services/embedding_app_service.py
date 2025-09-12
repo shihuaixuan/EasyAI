@@ -3,6 +3,7 @@
 """
 import asyncio
 import logging
+import os
 from typing import List, Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,6 +14,8 @@ from ...domain.knowledge.services.embedding_domain_service import EmbeddingDomai
 from ...domain.knowledge.vo.embedding_config import EmbeddingModelConfig, EmbeddingProcessResult
 from ...domain.model.services.embedding.factory import create_embedding
 from ...infrastructure.database import get_async_session
+from ...infrastructure.repositories.knowledge.embedding_config_repository_impl import EmbeddingConfigRepositoryImpl
+from ...infrastructure.repositories.knowledge.document_chunk_repository_impl import DocumentChunkRepositoryImpl
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -277,7 +280,6 @@ class EmbeddingApplicationService:
             
             # 处理环境变量API密钥
             if embedding_config.provider != 'local' and not service_config.get('api_key'):
-                import os
                 service_config['api_key'] = os.getenv(f'{embedding_config.provider.upper()}_API_KEY')
             
             embedding_service = create_embedding(embedding_config.provider, service_config)
@@ -292,10 +294,8 @@ class EmbeddingApplicationService:
 # 工厂函数
 async def create_embedding_application_service(session: AsyncSession) -> EmbeddingApplicationService:
     """创建embedding应用服务实例"""
-    from ...infrastructure.repositories.knowledge.embedding_config_repository_impl import EmbeddingConfigRepositoryImpl
-    from ...infrastructure.repositories.knowledge.document_chunk_sql_repository import DocumentChunkSqlRepository
     
     embedding_config_repo = EmbeddingConfigRepositoryImpl(session)
-    document_chunk_repo = DocumentChunkSqlRepository(session)
+    document_chunk_repo = DocumentChunkRepositoryImpl(session)
     
     return EmbeddingApplicationService(embedding_config_repo, document_chunk_repo)

@@ -8,7 +8,7 @@ from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from ...infrastructure.database import get_database_session
 from ...infrastructure.repositories.knowledge.knowledge_base_database_repository_impl import KnowledgeBaseDatabaseRepositoryImpl
-from ...application.services.knowledge_application_service import KnowledgeApplicationService
+from ...application.services.knowledge_app_service import KnowledgeApplicationService
 from ...domain.knowledge.services.knowledge_base_domain_service import KnowledgeBaseDomainService
 from ...application.dto.knowledge_base_dto import (
     KnowledgeBaseCreateRequest,
@@ -27,6 +27,22 @@ from ...application.dto.workflow_dto import (
 )
 from ..dependencies import get_current_user_id
 
+# 添加所有需要的导入
+import asyncio
+from sqlalchemy import select, and_
+from ...domain.knowledge.entities.knowledge_base import KnowledgeBase
+from ...infrastructure.repositories.knowledge.document_repository_impl import DocumentRepositoryImpl
+from ...infrastructure.repositories.knowledge.document_chunk_repository_impl import DocumentChunkRepositoryImpl
+from ...domain.knowledge.services.file_upload_service import FileUploadService
+from ...domain.knowledge.services.document_parser_service import DocumentParserService, DocumentParserRegistry
+from ...domain.knowledge.services.chunking.document_chunking_service import DocumentChunkingService
+from ...domain.knowledge.vo.workflow_config import FileUploadConfig
+from ...infrastructure.parsers.document_parsers import TextDocumentParser, DefaultDocumentParser
+from ...infrastructure.repositories.provider.provider_repository_impl import ProviderRepositoryImpl
+from ...infrastructure.models.provider_models import ModelModel, ProviderModel
+from ...application.services.embedding_app_service import EmbeddingApplicationService
+from ...infrastructure.repositories.knowledge.embedding_config_repository_impl import EmbeddingConfigRepositoryImpl
+
 router = APIRouter(prefix="/api/knowledge", tags=["知识库"])
 
 
@@ -42,7 +58,6 @@ async def create_knowledge_base(
         knowledge_base_repo = KnowledgeBaseDatabaseRepositoryImpl(session)
         
         # 创建知识库实体
-        from ...domain.knowledge.entities.knowledge_base import KnowledgeBase
         knowledge_base = KnowledgeBase(
             name=request.name,
             description=request.description,
@@ -179,12 +194,10 @@ async def get_knowledge_base_overview(
     """获取知识库概览"""
     try:
         # 创建仓储实例
-        from ...infrastructure.repositories.knowledge.document_sql_repository import DocumentSqlRepository
-        from ...infrastructure.repositories.knowledge.document_chunk_sql_repository import DocumentChunkSqlRepository
         
         knowledge_base_repo = KnowledgeBaseDatabaseRepositoryImpl(session)
-        document_repo = DocumentSqlRepository(session)
-        document_chunk_repo = DocumentChunkSqlRepository(session)
+        document_repo = DocumentRepositoryImpl(session)
+        document_chunk_repo = DocumentChunkRepositoryImpl(session)
         
         # 创建领域服务
         knowledge_base_domain_service = KnowledgeBaseDomainService(
@@ -241,17 +254,10 @@ async def update_workflow_config(
     """更新工作流配置"""
     try:
         # 创建使用当前请求会话的仓储实例
-        from ...infrastructure.repositories.knowledge.document_sql_repository import DocumentSqlRepository
-        from ...infrastructure.repositories.knowledge.document_chunk_sql_repository import DocumentChunkSqlRepository
-        from ...domain.knowledge.services.file_upload_service import FileUploadService
-        from ...domain.knowledge.services.document_parser_service import DocumentParserService, DocumentParserRegistry
-        from ...domain.knowledge.services.chunking.document_chunking_service import DocumentChunkingService
-        from ...domain.knowledge.vo.workflow_config import FileUploadConfig
-        from ...infrastructure.parsers.document_parsers import TextDocumentParser, DefaultDocumentParser
         
         knowledge_base_repo = KnowledgeBaseDatabaseRepositoryImpl(session)
-        document_repo = DocumentSqlRepository(session)
-        document_chunk_repo = DocumentChunkSqlRepository(session)
+        document_repo = DocumentRepositoryImpl(session)
+        document_chunk_repo = DocumentChunkRepositoryImpl(session)
         
         # 创建领域服务和应用服务
         knowledge_base_domain_service = KnowledgeBaseDomainService(
@@ -311,17 +317,10 @@ async def upload_file(
     """上传单个文件"""
     try:
         # 创建使用当前请求会话的仓储实例
-        from ...infrastructure.repositories.knowledge.document_sql_repository import DocumentSqlRepository
-        from ...infrastructure.repositories.knowledge.document_chunk_sql_repository import DocumentChunkSqlRepository
-        from ...domain.knowledge.services.file_upload_service import FileUploadService
-        from ...domain.knowledge.services.document_parser_service import DocumentParserService, DocumentParserRegistry
-        from ...domain.knowledge.services.chunking.document_chunking_service import DocumentChunkingService
-        from ...domain.knowledge.vo.workflow_config import FileUploadConfig
-        from ...infrastructure.parsers.document_parsers import TextDocumentParser, DefaultDocumentParser
         
         knowledge_base_repo = KnowledgeBaseDatabaseRepositoryImpl(session)
-        document_repo = DocumentSqlRepository(session)
-        document_chunk_repo = DocumentChunkSqlRepository(session)
+        document_repo = DocumentRepositoryImpl(session)
+        document_chunk_repo = DocumentChunkRepositoryImpl(session)
         
         # 创建领域服务和应用服务
         knowledge_base_domain_service = KnowledgeBaseDomainService(
@@ -380,17 +379,10 @@ async def upload_files_batch(
     """批量上传文件"""
     try:
         # 创建使用当前请求会话的仓储实例
-        from ...infrastructure.repositories.knowledge.document_sql_repository import DocumentSqlRepository
-        from ...infrastructure.repositories.knowledge.document_chunk_sql_repository import DocumentChunkSqlRepository
-        from ...domain.knowledge.services.file_upload_service import FileUploadService
-        from ...domain.knowledge.services.document_parser_service import DocumentParserService, DocumentParserRegistry
-        from ...domain.knowledge.services.chunking.document_chunking_service import DocumentChunkingService
-        from ...domain.knowledge.vo.workflow_config import FileUploadConfig
-        from ...infrastructure.parsers.document_parsers import TextDocumentParser, DefaultDocumentParser
         
         knowledge_base_repo = KnowledgeBaseDatabaseRepositoryImpl(session)
-        document_repo = DocumentSqlRepository(session)
-        document_chunk_repo = DocumentChunkSqlRepository(session)
+        document_repo = DocumentRepositoryImpl(session)
+        document_chunk_repo = DocumentChunkRepositoryImpl(session)
         
         # 创建领域服务（使用当前请求的会话）
         knowledge_base_domain_service = KnowledgeBaseDomainService(
@@ -449,17 +441,10 @@ async def list_files(
     """获取文件列表"""
     try:
         # 创建使用当前请求会话的仓储实例
-        from ...infrastructure.repositories.knowledge.document_sql_repository import DocumentSqlRepository
-        from ...infrastructure.repositories.knowledge.document_chunk_sql_repository import DocumentChunkSqlRepository
-        from ...domain.knowledge.services.file_upload_service import FileUploadService
-        from ...domain.knowledge.services.document_parser_service import DocumentParserService, DocumentParserRegistry
-        from ...domain.knowledge.services.chunking.document_chunking_service import DocumentChunkingService
-        from ...domain.knowledge.vo.workflow_config import FileUploadConfig
-        from ...infrastructure.parsers.document_parsers import TextDocumentParser, DefaultDocumentParser
         
         knowledge_base_repo = KnowledgeBaseDatabaseRepositoryImpl(session)
-        document_repo = DocumentSqlRepository(session)
-        document_chunk_repo = DocumentChunkSqlRepository(session)
+        document_repo = DocumentRepositoryImpl(session)
+        document_chunk_repo = DocumentChunkRepositoryImpl(session)
         
         # 创建领域服务（使用当前请求的会话）
         knowledge_base_domain_service = KnowledgeBaseDomainService(
@@ -509,12 +494,10 @@ async def delete_file(
     """删除单个文件"""
     try:
         # 创建使用当前请求会话的仓储实例
-        from ...infrastructure.repositories.knowledge.document_sql_repository import DocumentSqlRepository
-        from ...infrastructure.repositories.knowledge.document_chunk_sql_repository import DocumentChunkSqlRepository
         
         knowledge_base_repo = KnowledgeBaseDatabaseRepositoryImpl(session)
-        document_repo = DocumentSqlRepository(session)
-        document_chunk_repo = DocumentChunkSqlRepository(session)
+        document_repo = DocumentRepositoryImpl(session)
+        document_chunk_repo = DocumentChunkRepositoryImpl(session)
         
         # 创建领域服务（使用当前请求的会话）
         knowledge_base_domain_service = KnowledgeBaseDomainService(
@@ -571,17 +554,10 @@ async def delete_knowledge_base(
     """删除知识库"""
     try:
         # 创建使用当前请求会话的仓储实例
-        from ...infrastructure.repositories.knowledge.document_sql_repository import DocumentSqlRepository
-        from ...infrastructure.repositories.knowledge.document_chunk_sql_repository import DocumentChunkSqlRepository
-        from ...domain.knowledge.services.file_upload_service import FileUploadService
-        from ...domain.knowledge.services.document_parser_service import DocumentParserService, DocumentParserRegistry
-        from ...domain.knowledge.services.chunking.document_chunking_service import DocumentChunkingService
-        from ...domain.knowledge.vo.workflow_config import FileUploadConfig
-        from ...infrastructure.parsers.document_parsers import TextDocumentParser, DefaultDocumentParser
         
         knowledge_base_repo = KnowledgeBaseDatabaseRepositoryImpl(session)
-        document_repo = DocumentSqlRepository(session)
-        document_chunk_repo = DocumentChunkSqlRepository(session)
+        document_repo = DocumentRepositoryImpl(session)
+        document_chunk_repo = DocumentChunkRepositoryImpl(session)
         
         # 创建领域服务（使用当前请求的会话）
         knowledge_base_domain_service = KnowledgeBaseDomainService(
@@ -637,12 +613,9 @@ async def get_available_embedding_models(
 ):
     """获取用户可用的embedding模型"""
     try:
-        from ...infrastructure.repositories.provider.sql_provider_repository import SqlProviderRepository
-        from ...infrastructure.models.provider_models import ModelModel, ProviderModel
-        from sqlalchemy import select, and_
         
         # 1. 查询用户有权访问的提供商列表
-        provider_repo = SqlProviderRepository(session)
+        provider_repo = ProviderRepositoryImpl(session)
         # 直接使用字符串用户ID（UUID格式）
         user_providers = await provider_repo.find_by_user_id(current_user_id)
         
@@ -699,7 +672,6 @@ async def reprocess_embeddings(
     """重新处理知识库的embedding向量"""
     try:
         # 验证知识库是否存在并检查权限
-        from ...infrastructure.repositories.knowledge.knowledge_base_database_repository_impl import KnowledgeBaseDatabaseRepositoryImpl
         knowledge_base_repo = KnowledgeBaseDatabaseRepositoryImpl(session)
         knowledge_base = await knowledge_base_repo.find_by_id(knowledge_base_id)
         
@@ -709,12 +681,14 @@ async def reprocess_embeddings(
             raise HTTPException(status_code=403, detail="无权限访问此知识库")
         
         # 启动异步embedding处理任务
-        from ...application.services.embedding_application_service import create_embedding_application_service
-        import asyncio
         
         # 创建异步任务（不等待完成）
         async def process_task():
-            embedding_app_service = await create_embedding_application_service(session)
+            # 创建 EmbeddingApplicationService 实例
+            
+            embedding_config_repo = EmbeddingConfigRepositoryImpl(session)
+            document_chunk_repo = DocumentChunkRepositoryImpl(session)
+            embedding_app_service = EmbeddingApplicationService(embedding_config_repo, document_chunk_repo)
             return await embedding_app_service.process_knowledge_base_embeddings(
                 knowledge_base_id, current_user_id
             )
@@ -745,11 +719,9 @@ async def reprocess_document_embeddings(
     """重新处理单个文档的embedding向量"""
     try:
         # 验证知识库和文档是否存在
-        from ...infrastructure.repositories.knowledge.knowledge_base_database_repository_impl import KnowledgeBaseDatabaseRepositoryImpl
-        from ...infrastructure.repositories.knowledge.document_sql_repository import DocumentSqlRepository
         
         knowledge_base_repo = KnowledgeBaseDatabaseRepositoryImpl(session)
-        document_repo = DocumentSqlRepository(session)
+        document_repo = DocumentRepositoryImpl(session)
         
         knowledge_base = await knowledge_base_repo.find_by_id(knowledge_base_id)
         if not knowledge_base:
@@ -762,12 +734,14 @@ async def reprocess_document_embeddings(
             raise HTTPException(status_code=404, detail="文档不存在或不属于该知识库")
         
         # 启动异步embedding处理任务
-        from ...application.services.embedding_application_service import create_embedding_application_service
-        import asyncio
         
         # 创建异步任务（不等待完成）
         async def process_task():
-            embedding_app_service = await create_embedding_application_service(session)
+            # 创建 EmbeddingApplicationService 实例
+            
+            embedding_config_repo = EmbeddingConfigRepositoryImpl(session)
+            document_chunk_repo = DocumentChunkRepositoryImpl(session)
+            embedding_app_service = EmbeddingApplicationService(embedding_config_repo, document_chunk_repo)
             return await embedding_app_service.process_document_embeddings(
                 knowledge_base_id, document_id, current_user_id
             )
@@ -797,8 +771,6 @@ async def get_embedding_status(
 ):
     """获取知识库的embedding状态"""
     try:
-        from ...infrastructure.repositories.knowledge.document_chunk_sql_repository import DocumentChunkSqlRepository
-        from ...infrastructure.repositories.knowledge.knowledge_base_database_repository_impl import KnowledgeBaseDatabaseRepositoryImpl
         
         # 验证用户权限
         knowledge_base_repo = KnowledgeBaseDatabaseRepositoryImpl(session)
@@ -808,7 +780,7 @@ async def get_embedding_status(
         if knowledge_base.owner_id != current_user_id:
             raise HTTPException(status_code=403, detail="无权限访问此知识库")
         
-        chunk_repo = DocumentChunkSqlRepository(session)
+        chunk_repo = DocumentChunkRepositoryImpl(session)
         
         # 获取所有分块
         all_chunks = await chunk_repo.find_by_knowledge_base_id(knowledge_base_id)
@@ -842,17 +814,10 @@ async def start_knowledge_processing(
     """开始知识库处理流程（处理uploads目录中未入库的文件）"""
     try:
         # 创建使用当前请求会话的仓储实例
-        from ...infrastructure.repositories.knowledge.document_sql_repository import DocumentSqlRepository
-        from ...infrastructure.repositories.knowledge.document_chunk_sql_repository import DocumentChunkSqlRepository
-        from ...domain.knowledge.services.file_upload_service import FileUploadService
-        from ...domain.knowledge.services.document_parser_service import DocumentParserService, DocumentParserRegistry
-        from ...domain.knowledge.services.chunking.document_chunking_service import DocumentChunkingService
-        from ...domain.knowledge.vo.workflow_config import FileUploadConfig
-        from ...infrastructure.parsers.document_parsers import TextDocumentParser, DefaultDocumentParser
         
         knowledge_base_repo = KnowledgeBaseDatabaseRepositoryImpl(session)
-        document_repo = DocumentSqlRepository(session)
-        document_chunk_repo = DocumentChunkSqlRepository(session)
+        document_repo = DocumentRepositoryImpl(session)
+        document_chunk_repo = DocumentChunkRepositoryImpl(session)
         
         # 创建领域服务（使用当前请求的会话）
         knowledge_base_domain_service = KnowledgeBaseDomainService(
@@ -891,7 +856,6 @@ async def start_knowledge_processing(
         
         # 在事务提交后启动异步embedding处理任务
         if hasattr(application_service, '_pending_embedding_tasks') and application_service._pending_embedding_tasks:
-            import asyncio
             print(f"🚀 启动 {len(application_service._pending_embedding_tasks)} 个异步embedding处理任务...")
             for task_info in application_service._pending_embedding_tasks:
                 asyncio.create_task(application_service._process_document_embeddings_async(
@@ -932,3 +896,13 @@ async def get_supported_file_types():
         "max_file_size": 15 * 1024 * 1024,  # 15MB
         "description": "支持的文件格式和大小限制"
     }
+
+@router.get("/knowledge-bases/retrivel_test")
+async def test_embedding_retrieval(
+    query: str,
+    knowledge_base_id: str,
+    session: AsyncSession = Depends(get_database_session)
+):
+    """测试embedding召回"""
+    # TODO: 实现embedding召回测试逻辑
+    return {"message": "Embedding retrieval test endpoint", "query": query, "knowledge_base_id": knowledge_base_id}

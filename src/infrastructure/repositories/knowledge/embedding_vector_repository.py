@@ -10,9 +10,10 @@ import json
 
 from ....infrastructure.models.knowledge_models import EmbeddingModel
 from ....domain.knowledge.entities.document_chunk import DocumentChunk
+from ....infrastructure.utils.uuid_generator import uuid_generator
 
 
-class EmbeddingVectorRepository:
+class EmbeddingVectorRepositoryImpl:
     """Embedding向量仓储实现"""
     
     def __init__(self, session: AsyncSession):
@@ -39,7 +40,6 @@ class EmbeddingVectorRepository:
         """
         try:
             # 生成UUID作为主键
-            from ....infrastructure.utils.uuid_generator import uuid_generator
             embedding_id = uuid_generator.generate()
             
             # 验证向量维度（现在支持1024维）

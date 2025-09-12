@@ -9,9 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ....domain.knowledge.entities.document import Document
 from ....domain.knowledge.repositories.document_repository import DocumentRepository
+from ....infrastructure.utils.uuid_generator import uuid_generator
 
 
-class DocumentSqlRepository(DocumentRepository):
+class DocumentRepositoryImpl(DocumentRepository):
     """文档仓储SQL实现"""
     
     def __init__(self, session: AsyncSession):
@@ -21,7 +22,6 @@ class DocumentSqlRepository(DocumentRepository):
         """保存文档"""
         # 如果document没有ID，生成一个UUID
         if not document.document_id:
-            from ....infrastructure.utils.uuid_generator import uuid_generator
             document.document_id = uuid_generator.generate()
         
         # 使用实际数据库表字段
@@ -224,7 +224,6 @@ class DocumentSqlRepository(DocumentRepository):
         # 处理meta字段，可能是JSON字符串也可能是字典
         meta_data = data.get('meta')
         if isinstance(meta_data, str):
-            import json
             try:
                 meta_data = json.loads(meta_data)
             except json.JSONDecodeError:

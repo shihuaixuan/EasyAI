@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, status, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Dict, Any
 import logging
+import traceback
 
 from src.api.dtos.user_dtos import (
     UserRegisterRequest,
@@ -15,10 +16,10 @@ from src.api.dtos.user_dtos import (
     UserResponse,
     ErrorResponse
 )
-from src.application.services.user_application_service import UserApplicationService
+from src.application.services.user_app_service import UserApplicationService
 from src.domain.user.repositories.user_repository import UserRepository
 from src.domain.user.services.user_domain_service import UserDomainService
-from src.infrastructure.repositories.sql_user_repository import SqlUserRepository
+from src.infrastructure.repositories.user_repository_impl import UserRepositoryImpl
 from src.infrastructure.services.password_service import password_service
 from src.infrastructure.services.jwt_service import jwt_service
 from src.infrastructure.database import get_database_session
@@ -36,7 +37,7 @@ def get_user_application_service(
     session: AsyncSession = Depends(get_database_session)
 ) -> UserApplicationService:
     """获取用户应用服务实例"""
-    user_repository = SqlUserRepository(session)
+    user_repository = UserRepositoryImpl(session)
     user_domain_service = UserDomainService(user_repository)
     
     return UserApplicationService(
@@ -91,7 +92,6 @@ async def register(
                 detail=str(e)
             )
     except Exception as e:
-        import traceback
         logger.error(f"用户注册异常: {str(e)}")
         logger.error(f"错误堆栈: {traceback.format_exc()}")
         raise HTTPException(

@@ -6,9 +6,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...application.dto.provider_dto import SaveProviderRequest, SaveProviderResponse, ProviderResponse
-from ...application.services.provider_application_service import ProviderApplicationService
+from ...application.services.provider_app_service import ProviderApplicationService
 from ...domain.provider.services.provider_domain_service import ProviderDomainService
-from ...infrastructure.repositories.provider.sql_provider_repository import SqlProviderRepository
+from ...infrastructure.repositories.provider.provider_repository_impl import ProviderRepositoryImpl
 from ...infrastructure.database import get_database_session
 from ...api.dependencies import get_current_user_id
 
@@ -22,7 +22,7 @@ def get_provider_application_service(
     """
     获取Provider应用服务实例
     """
-    provider_repository = SqlProviderRepository(session)
+    provider_repository = ProviderRepositoryImpl(session)
     provider_domain_service = ProviderDomainService(provider_repository)
     return ProviderApplicationService(provider_domain_service)
 
